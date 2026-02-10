@@ -6,12 +6,11 @@ use std::{
         Arc, RwLock,
         mpsc::{self, Receiver, Sender, TryRecvError},
     },
-    thread, time,
+    thread,
 };
 
 use crate::{
-    VERSION_MAJOR, VERSION_MINOR, calculate_version,
-    hash::Sha256,
+    calculate_version,
     vchat::packet::{HEADER_LEN, Header, Packet},
 };
 
@@ -209,9 +208,7 @@ impl VChat {
             Ok(packet) => Ok(Some(packet)),
             Err(e) => match e {
                 TryRecvError::Empty => Ok(None),
-                TryRecvError::Disconnected => {
-                    Err(error::Error::SocketClosedError("Reader closed."))
-                }
+                TryRecvError::Disconnected => Err(error::Error::SocketClosed("Reader closed.")),
             },
         }
     }

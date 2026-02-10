@@ -125,9 +125,9 @@ impl Header {
         let mut timestamp = [0u8; 8];
         let mut checksum = [0u8; 4];
 
-        version.copy_from_slice(&header_bytes[4..8]);
-        timestamp.copy_from_slice(&header_bytes[8..24]);
-        checksum.copy_from_slice(&header_bytes[26..HEADER_LEN]);
+        version.copy_from_slice(&header_bytes[..4]);
+        timestamp.copy_from_slice(&header_bytes[4..12]);
+        checksum.copy_from_slice(&header_bytes[12..HEADER_LEN]);
 
         let timestamp_number = i64::from_be_bytes(timestamp);
         let timestamp = match chrono::DateTime::from_timestamp_millis(timestamp_number) {

@@ -17,14 +17,18 @@ pub const VERSION_PATCH: &str = env!("CARGO_PKG_VERSION_PATCH");
 ///
 /// -> 320
 pub fn calculate_version() -> u32 {
-    let major: u32 = VERSION_MAJOR.parse().expect(&format!(
-        "Failed to parse Major Version `{}` into u32.",
-        VERSION_MAJOR
-    ));
-    let minor: u32 = VERSION_MINOR.parse().expect(&format!(
-        "Failed to parse Minor Version `{}` into u32.",
-        VERSION_MINOR
-    ));
+    let major: u32 = VERSION_MAJOR.parse().unwrap_or_else(|_| {
+        panic!(
+            "Failed to parse Major Version `{}` into u32.",
+            VERSION_MAJOR
+        )
+    });
+    let minor: u32 = VERSION_MINOR.parse().unwrap_or_else(|_| {
+        panic!(
+            "Failed to parse Minor Version `{}` into u32.",
+            VERSION_MINOR
+        )
+    });
 
     let places = (minor as f64).log(10.0).floor() as u32 + 1;
     major * 10_u32.pow(places) + minor
