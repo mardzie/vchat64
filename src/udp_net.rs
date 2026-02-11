@@ -18,11 +18,14 @@ use packet::{HEADER_LEN, Header, Packet};
 
 pub const MAX_PACKAGE_AGE_SEC: i64 = 10;
 
+/// The UDP Socket handler.
+/// 
+/// There must never exists two identical `SocketAddr` in `addresses`!
 #[derive(Debug)]
 pub struct UdpNet {
     tx_send: Sender<Packet>,
     rx_read: Receiver<(SocketAddr, Vec<u8>)>,
-    addresses: Arc<RwLock<Vec<SocketAddr>>>,
+    pub addresses: Arc<RwLock<Vec<SocketAddr>>>,
     writer_handle: thread::JoinHandle<()>,
     reader_handle: thread::JoinHandle<()>,
 }
