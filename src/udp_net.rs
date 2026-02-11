@@ -19,7 +19,7 @@ use packet::{HEADER_LEN, Header, Packet};
 pub const MAX_PACKAGE_AGE_SEC: i64 = 10;
 
 /// The UDP Socket handler.
-/// 
+///
 /// There must never exists two identical `SocketAddr` in `addresses`!
 #[derive(Debug)]
 pub struct UdpNet {
@@ -193,19 +193,19 @@ impl UdpNet {
             .contains(addr)
     }
 
-    /// Write a voice packet.
+    /// Send a voice packet.
     ///
     /// When sucessful `Ok(())` is returned.
     /// On error the bytes will be returned.
-    pub fn write(&self, bytes: Vec<u8>) -> Result<(), Vec<u8>> {
+    pub fn send(&self, bytes: Vec<u8>) -> Result<(), Vec<u8>> {
         match self.tx_send.send(Packet::from(bytes)) {
             Ok(_) => Ok(()),
             Err(e) => Err(e.0.payload),
         }
     }
 
-    /// Read a voice packet.
-    pub fn read(&self) -> Result<Option<(SocketAddr, Vec<u8>)>, error::Error> {
+    /// Receive a voice packet.
+    pub fn recv(&self) -> Result<Option<(SocketAddr, Vec<u8>)>, error::Error> {
         match self.rx_read.try_recv() {
             Ok(packet) => Ok(Some(packet)),
             Err(e) => match e {
