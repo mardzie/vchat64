@@ -38,4 +38,12 @@ impl VChat {
     pub fn get_addresses(&self) -> &std::sync::Arc<std::sync::RwLock<Vec<SocketAddr>>> {
         &self.udp_net.addresses
     }
+
+    pub fn clear_addresses(&self) {
+        self.udp_net
+            .addresses
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clear();
+    }
 }
