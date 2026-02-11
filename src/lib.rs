@@ -1,8 +1,7 @@
 use crate::traits::EndianessConversion;
 
-mod hash;
-mod traits;
-mod vchat;
+pub mod hash;
+pub mod traits;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const VERSION_MAJOR: &str = env!("CARGO_PKG_VERSION_MAJOR");

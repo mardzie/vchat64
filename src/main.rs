@@ -2,8 +2,9 @@ use color_eyre::Result;
 
 mod app;
 mod state;
+mod vchat;
 
-use app::App;
+use crate::app::App;
 use ratatui::crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 fn main() -> Result<()> {

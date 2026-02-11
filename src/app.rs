@@ -1,17 +1,20 @@
 use color_eyre::Result;
 use ratatui::{
     DefaultTerminal, Frame,
-    crossterm::event::{self, Event},
+    crossterm::event::{self, Event, KeyCode},
     style::Stylize,
     text::Line,
     widgets::{Block, Widget},
 };
 
-use crate::state::{AppState, CallMode};
+use crate::{state::AppState, vchat::VChat};
+
+pub const KEY_CODE_ACCEPT: KeyCode = KeyCode::Enter;
 
 #[derive(Debug)]
 pub struct App {
     app_state: AppState,
+    vchat: Option<VChat>,
     exit: bool,
 }
 
@@ -33,8 +36,7 @@ impl App {
         let event = event::read()?;
         match &self.app_state {
             AppState::Main => self.handle_event_main(event)?,
-            AppState::InCall(call_mode) => self.handle_event_in_call(event, call_mode.clone())?,
-            AppState::Exit => self.exit()?,
+            AppState::Exit(_) => self.exit(event)?,
         };
 
         Ok(())
@@ -44,12 +46,26 @@ impl App {
         Ok(())
     }
 
-    fn handle_event_in_call(&mut self, event: Event, call_mode: CallMode) -> Result<()> {
-        Ok(())
-    }
+    fn exit(&mut self, event: Event) -> Result<()> {
+        match &mut self.app_state {
+            AppState::Exit(confirmed) => {
+                if *confirmed {
+                    self.exit = true;
+                } else {
+                    if let Event::Key(key) = event {
+                        if !key.is_press() {
+                            return Ok(());
+                        };
 
-    fn exit(&mut self) -> Result<()> {
-        self.exit = true;
+                        if key.code == KEY_CODE_ACCEPT {
+                            *confirmed = true;
+                        };
+                    }
+                }
+            }
+            _ => panic!("Exit should have not been called, only if the `AppState` is `Exit`"),
+        };
+
         Ok(())
     }
 }
@@ -61,6 +77,8 @@ impl Widget for &App {
     {
         let title = Line::from(" VChat64 ").bold();
         let block = Block::bordered().title(title);
+        
+        
 
         block.render(area, buf);
     }
@@ -70,6 +88,7 @@ impl Default for App {
     fn default() -> Self {
         Self {
             app_state: Default::default(),
+            vchat: None,
             exit: false,
         }
     }
