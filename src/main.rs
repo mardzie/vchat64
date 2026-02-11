@@ -5,6 +5,7 @@ mod hash;
 mod helpers;
 mod state;
 mod traits;
+mod udp_net;
 mod vchat;
 
 use crate::app::App;
@@ -17,7 +18,7 @@ fn main() -> Result<()> {
     enable_raw_mode()?;
 
     let mut terminal = ratatui::init();
-    let app_result = App::default().run(&mut terminal);
+    let app_result = App::new().run(&mut terminal);
 
     disable_raw_mode()?;
     if let Err(e) = ratatui::try_restore() {

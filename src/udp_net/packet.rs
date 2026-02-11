@@ -51,7 +51,7 @@ impl Packet {
         (self.header, self.payload)
     }
 
-    pub fn to_bytes(self) -> Vec<u8> {
+    pub fn into_bytes(self) -> Vec<u8> {
         let mut buf = self.payload;
         let len = buf.len();
         buf.resize(HEADER_LEN + buf.len(), 0);
@@ -116,8 +116,10 @@ impl Header {
         buf[4..12].copy_from_slice(&self.timestamp.timestamp_millis().to_be_bytes());
         buf[12..HEADER_LEN].copy_from_slice(&self.checksum);
     }
+}
 
-    pub fn from_bytes(header_bytes: [u8; HEADER_LEN]) -> Self {
+impl From<[u8; HEADER_LEN]> for Header {
+    fn from(header_bytes: [u8; HEADER_LEN]) -> Self {
         let mut version = [0u8; 4];
         let mut timestamp = [0u8; 8];
         let mut checksum = [0u8; 4];
@@ -148,7 +150,7 @@ impl Header {
 
 #[cfg(test)]
 mod packet_test {
-    use crate::vchat::packet::{HEADER_LEN, Header, Packet};
+    use crate::udp_net::packet::{HEADER_LEN, Header, Packet};
 
     const PAYLOAD: [u8; 6] = [25, 40, 90, 120, 30, 0];
 
@@ -170,7 +172,7 @@ mod packet_test {
         let mut header_bytes = [0u8; HEADER_LEN];
         control_header.to_bytes(&mut header_bytes);
 
-        let header = Header::from_bytes(header_bytes);
+        let header = Header::from(header_bytes);
         // `Header::from_bytes` uses milliseconds but the original uses the full capabilities of the Computer.
         // They won't match most of the time so set the control to the less exact version.
         control_header.timestamp =
@@ -184,7 +186,7 @@ mod packet_test {
     fn packet_to_bytes() {
         let header = Header::new(&PAYLOAD);
         let packet = Packet::new(header.clone(), PAYLOAD.to_vec()).unwrap();
-        let packet_bytes = packet.to_bytes();
+        let packet_bytes = packet.into_bytes();
 
         let mut control_bytes = [0u8; HEADER_LEN + PAYLOAD.len()];
         header.to_bytes(&mut control_bytes[..HEADER_LEN]);
@@ -194,7 +196,9 @@ mod packet_test {
     }
 
     #[test]
-    fn packet_from_bytes() {}
+    fn packet_from_bytes() {
+        todo!("Implement packet from bytes");
+    }
 
     #[test]
     fn verify_checksum() {
