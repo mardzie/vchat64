@@ -1,7 +1,10 @@
 use color_eyre::Result;
 
 mod app;
+mod hash;
+mod helpers;
 mod state;
+mod traits;
 mod vchat;
 
 use crate::app::App;

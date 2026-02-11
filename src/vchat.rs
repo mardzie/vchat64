@@ -9,10 +9,9 @@ use std::{
     thread,
 };
 
-use crate::{
-    calculate_version,
-    vchat::packet::{HEADER_LEN, Header, Packet},
-};
+use crate::helpers::calculate_version;
+
+use crate::vchat::packet::{HEADER_LEN, Header, Packet};
 
 pub mod error;
 mod packet;

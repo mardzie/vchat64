@@ -1,7 +1,4 @@
-use crate::{
-    calculate_version,
-    hash::{self},
-};
+use crate::{hash, helpers::calculate_version};
 
 pub const HEADER_LEN: usize = 4 + 8 + 4;
 

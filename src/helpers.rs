@@ -1,8 +1,5 @@
 use crate::traits::EndianessConversion;
 
-pub mod hash;
-pub mod traits;
-
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const VERSION_MAJOR: &str = env!("CARGO_PKG_VERSION_MAJOR");
 pub const VERSION_MINOR: &str = env!("CARGO_PKG_VERSION_MINOR");
@@ -14,7 +11,7 @@ pub const VERSION_PATCH: &str = env!("CARGO_PKG_VERSION_PATCH");
 /// | ----- | ----- |
 /// | 3     | 20    |
 ///
-/// -> 320
+/// -> 321
 pub fn calculate_version() -> u32 {
     let major: u32 = VERSION_MAJOR.parse().unwrap_or_else(|_| {
         panic!(
