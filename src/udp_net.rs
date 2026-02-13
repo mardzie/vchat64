@@ -97,6 +97,7 @@ impl UdpNet {
         let packet_version: u32 = calculate_version();
 
         let mut buf = [0u8; u16::MAX as usize];
+        let mut last_packet_timestamp = chrono::DateTime::UNIX_EPOCH;
         loop {
             let (len, src_addr) = match socket.recv_from(&mut buf) {
                 Ok((len, src_addr)) => (len, src_addr),
@@ -166,7 +167,13 @@ impl UdpNet {
             } else if packet_timestamp < max_age_timestamp {
                 log::warn!("Invalid packet timestamp: Packet is too old. Dropping packet.");
                 continue;
-            }
+            } else if packet_timestamp < last_packet_timestamp {
+                log::warn!(
+                    "Invalid packet timestamp: Packet is older than the most recent packet. Dropping packet."
+                );
+                continue;
+            };
+            last_packet_timestamp = packet_timestamp;
 
             let (_, payload) = packet.split();
             match tx_read.send((src_addr, payload)) {
