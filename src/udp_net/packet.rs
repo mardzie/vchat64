@@ -43,6 +43,10 @@ impl Packet {
         &self.header
     }
 
+    pub fn update_timestamp(&mut self) {
+        self.header.update_timestamp();
+    }
+
     pub fn payload(&self) -> &[u8] {
         &self.payload
     }
@@ -95,6 +99,10 @@ impl Header {
 
     pub fn timestamp(&self) -> chrono::DateTime<chrono::Utc> {
         self.timestamp
+    }
+
+    pub fn update_timestamp(&mut self) {
+        self.timestamp = chrono::Utc::now();
     }
 
     pub fn verify_checksum(&self, payload: &[u8]) -> bool {

@@ -68,7 +68,10 @@ impl UdpNet {
     ) {
         loop {
             let packet_bytes = match rx_write.recv() {
-                Ok(packet) => packet.into_bytes(),
+                Ok(mut packet) => {
+                    packet.update_timestamp();
+                    packet.into_bytes()
+                }
                 Err(_) => {
                     log::warn!("Write channel closed: Stopping writer worker.");
                     break;
