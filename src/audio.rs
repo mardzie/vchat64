@@ -1,7 +1,10 @@
-use cpal::{Host, default_host};
+use std::sync::mpsc::{Receiver, Sender};
 
-use crate::audio::{input::InputStream, output::OutputStream};
+use cpal::{Host, InputCallbackInfo, OutputCallbackInfo, default_host};
 
+use crate::audio::{audio_processor::AudioProcessor, input::InputStream, output::OutputStream};
+
+pub mod audio_processor;
 pub mod config_filter;
 pub mod error;
 pub mod input;
@@ -11,31 +14,65 @@ pub struct Audio {
     host: Host,
     input: InputStream,
     output: OutputStream,
+    audio_processor: AudioProcessor,
 }
 
 impl Audio {
-    pub fn new<T, ID, IE, OD, OE>(
-        input_data_callback: ID,
-        input_error_callback: IE,
-        output_data_callback: OD,
-        output_error_callback: OE,
-    ) -> Self
-    where
-        T: cpal::SizedSample,
-        ID: FnMut(&[T], &cpal::InputCallbackInfo) + Send + 'static,
-        IE: FnMut(cpal::StreamError) + Send + 'static,
-        OD: FnMut(&mut [T], &cpal::OutputCallbackInfo) + Send + 'static,
-        OE: FnMut(cpal::StreamError) + Send + 'static,
-    {
+    /// Creates a new [`Audio`] instance.
+    ///
+    /// `input_channel` is the channel where the microphone sends its data.
+    ///
+    /// `output_channel` is the channel where the data the speaker should play gets sent.
+    pub fn new(input_channel: Sender<Vec<f32>>, output_channel: Receiver<Vec<f32>>) -> Self {
         let host = default_host();
 
+        let input = InputStream::new(
+            &host,
+            move |buf: &[f32], info| Self::input_data_callback(buf, info, &input_channel),
+            move |e| log::error!("Input Stream Error: {}", e),
+        )
+        .expect("Failed to create new input stream.");
+
+        let output = OutputStream::new(
+            &host,
+            move |buf, info| Self::output_data_callback(buf, info, &output_channel),
+            move |e| log::error!("Output Stream Error: {}", e),
+        )
+        .expect("Failed to create new output stream.");
+
         Self {
-            input: InputStream::new(&host, input_data_callback, input_error_callback)
-                .expect("Failed to create new input stream."),
-            output: OutputStream::new(&host, output_data_callback, output_error_callback)
-                .expect("Failed to create new output stream."),
+            input,
+            output,
+            audio_processor: AudioProcessor {},
             host,
         }
+    }
+
+    fn input_data_callback(
+        buf: &[f32],
+        info: &InputCallbackInfo,
+        input_channel: &Sender<Vec<f32>>,
+    ) {
+        todo!("Process Audio and ship it to `input_channel`");
+    }
+
+    fn output_data_callback(
+        buf: &mut [f32],
+        info: &OutputCallbackInfo,
+        output_channel: &Receiver<Vec<f32>>,
+    ) {
+        let values = loop {
+            match output_channel.recv() {
+                Ok(values) => break values,
+                Err(e) => {
+                    log::error!("Sender of audio output closed: {}", e);
+                    return;
+                }
+            }
+        };
+
+        let len = values.len().min(buf.len());
+        buf[..len].copy_from_slice(&values[..len]);
     }
 
     pub fn play(&self) {
