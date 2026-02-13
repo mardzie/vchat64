@@ -16,11 +16,7 @@ pub struct OutputStream {
 }
 
 impl OutputStream {
-    pub fn new<T, D, E>(
-        host: &Host,
-        data_callback: D,
-        error_callback: E,
-    ) -> Result<Self, Error>
+    pub fn new<T, D, E>(host: &Host, data_callback: D, error_callback: E) -> Result<Self, Error>
     where
         T: cpal::SizedSample,
         D: FnMut(&mut [T], &cpal::OutputCallbackInfo) + Send + 'static,

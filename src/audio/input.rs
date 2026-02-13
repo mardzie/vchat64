@@ -16,11 +16,7 @@ pub struct InputStream {
 }
 
 impl InputStream {
-    pub fn new<T, D, E>(
-        host: &Host,
-        data_callback: D,
-        error_callback: E,
-    ) -> Result<Self, Error>
+    pub fn new<T, D, E>(host: &Host, data_callback: D, error_callback: E) -> Result<Self, Error>
     where
         T: cpal::SizedSample,
         D: FnMut(&[T], &cpal::InputCallbackInfo) + Send + 'static,

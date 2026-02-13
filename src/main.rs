@@ -12,6 +12,8 @@ mod vchat;
 use crate::app::App;
 use ratatui::crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
+pub const TIMEOUT: std::time::Duration = std::time::Duration::from_millis(250);
+
 fn main() -> Result<()> {
     let file = std::fs::File::create("./log.log").unwrap();
     env_logger::builder()
@@ -24,7 +26,9 @@ fn main() -> Result<()> {
     enable_raw_mode()?;
 
     let mut terminal = ratatui::init();
-    let app_result = App::new().run(&mut terminal);
+    let mut app = App::new();
+    let app_result = app.run(&mut terminal);
+    app.stop();
 
     disable_raw_mode()?;
     if let Err(e) = ratatui::try_restore() {

@@ -55,7 +55,7 @@ impl Audio {
 
         let volume = Arc::new(atomic::AtomicU8::new(init_volume));
         let cutoff = Arc::new(atomic::AtomicU8::new(init_cutoff));
-        
+
         let volume_c = volume.clone();
         let cutoff_c = cutoff.clone();
         let audio_processor =
@@ -72,6 +72,7 @@ impl Audio {
         }
     }
 
+    #[inline]
     fn input_data_callback(
         buf: &[f32],
         info: &InputCallbackInfo,
@@ -90,6 +91,7 @@ impl Audio {
         }
     }
 
+    #[inline]
     fn output_data_callback(
         buf: &mut [f32],
         info: &OutputCallbackInfo,
@@ -107,29 +109,39 @@ impl Audio {
         buf[..len].copy_from_slice(&values[..len]);
     }
 
+    #[inline]
     pub fn play(&self) {
         self.play_input();
         self.play_output();
     }
 
+    #[inline]
     pub fn play_input(&self) {
         self.input.play().expect("Failed to play input stream.");
     }
 
+    #[inline]
     pub fn play_output(&self) {
         self.output.play().expect("Failed to play output stream.");
     }
 
+    #[inline]
     pub fn pause(&self) {
         self.pause_input();
         self.pause_output();
     }
 
+    #[inline]
     pub fn pause_input(&self) {
         self.input.pause().expect("Failed to pause input stream.");
     }
 
+    #[inline]
     pub fn pause_output(&self) {
         self.output.pause().expect("Failed to pause output stream.");
+    }
+
+    pub fn stop(self) {
+        self.audio_processor.stop();
     }
 }

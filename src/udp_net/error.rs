@@ -8,6 +8,6 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error("Voice Send Error: {0}")]
     VoiceSend(#[from] std::sync::mpsc::SendError<Vec<u8>>),
-    #[error("Socket closed: {0}")]
-    SocketClosed(&'static str),
+    // #[error("Socket closed: {0}")]
+    // SocketClosed(&'static str),
 }

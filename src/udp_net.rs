@@ -1,10 +1,11 @@
 //! This module handles all the in- and outgoing UDP traffic.
 
 use std::{
+    io,
     net::{SocketAddr, ToSocketAddrs, UdpSocket},
     sync::{
         Arc, RwLock,
-        mpsc::{self, Receiver, Sender, TryRecvError},
+        mpsc::{self, Receiver, Sender},
     },
     thread,
 };
@@ -12,7 +13,7 @@ use std::{
 use crate::helpers::calculate_version;
 
 pub mod error;
-mod packet;
+pub mod packet;
 
 use packet::{HEADER_LEN, Header, Packet};
 
@@ -23,15 +24,17 @@ pub const MAX_PACKAGE_AGE_SEC: i64 = 10;
 /// There must never exists two identical `SocketAddr` in `addresses`!
 #[derive(Debug)]
 pub struct UdpNet {
-    tx_send: Sender<Packet>,
-    rx_read: Receiver<(SocketAddr, Vec<u8>)>,
+    // tx_send: Sender<Packet>,
+    // rx_read: Receiver<(SocketAddr, Vec<u8>)>,
     pub addresses: Arc<RwLock<Vec<SocketAddr>>>,
     writer_handle: thread::JoinHandle<()>,
     reader_handle: thread::JoinHandle<()>,
 }
 
 impl UdpNet {
-    pub fn new<A>(addr: A) -> Result<Self, error::Error>
+    pub fn new<A>(
+        addr: A,
+    ) -> Result<(Self, Sender<Packet>, Receiver<(SocketAddr, Vec<u8>)>), error::Error>
     where
         A: ToSocketAddrs,
     {
@@ -41,7 +44,9 @@ impl UdpNet {
 
         let socket_writer = UdpSocket::bind(addr)?;
         let socket_reader = socket_writer.try_clone()?;
-        socket_writer.set_nonblocking(false);
+        socket_writer
+            .set_nonblocking(false)
+            .expect("Failed to put socket into blocking mode!");
 
         let (tx_write, rx_write) = mpsc::channel::<Packet>();
         let (tx_read, rx_read) = mpsc::channel::<(SocketAddr, Vec<u8>)>();
@@ -51,13 +56,15 @@ impl UdpNet {
         let reader_handle =
             thread::spawn(move || Self::reader(socket_reader, tx_read, reader_addresses));
 
-        Ok(UdpNet {
-            tx_send: tx_write,
+        Ok((
+            UdpNet {
+                addresses,
+                writer_handle,
+                reader_handle,
+            },
+            tx_write,
             rx_read,
-            addresses,
-            writer_handle,
-            reader_handle,
-        })
+        ))
     }
 
     /// Writes packets from the write `Vec` to the stream.
@@ -89,6 +96,8 @@ impl UdpNet {
                 };
             }
         }
+        
+        log::info!("UDP Writer: Stopped.");
     }
 
     /// Reads from stream and pushed the packet onto the read `Vec`.
@@ -106,7 +115,7 @@ impl UdpNet {
                 Ok((len, src_addr)) => (len, src_addr),
                 Err(e) => {
                     log::error!("Failed to receive message: {}", e);
-                    continue;
+                    break;
                 }
             };
 
@@ -191,6 +200,8 @@ impl UdpNet {
 
             log::debug!("Received valid message.");
         }
+
+        log::info!("UDP Reader: Stopped.");
     }
 
     #[inline]
@@ -206,32 +217,48 @@ impl UdpNet {
             .contains(addr)
     }
 
-    #[inline]
-    pub fn clone_sender_channel(&self) -> Sender<Packet> {
-        self.tx_send.clone()
+    pub fn stop(self) {
+        self.addresses
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clear();
+
+        self.writer_handle.join();
+        self.reader_handle.join();
     }
 
-    /// Send a voice packet.
-    ///
-    /// When sucessful `Ok(())` is returned.
-    /// On error the bytes will be returned.
-    #[inline]
-    pub fn send(&self, bytes: Vec<u8>) -> Result<(), Vec<u8>> {
-        match self.tx_send.send(Packet::from(bytes)) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e.0.payload),
-        }
-    }
+    // #[inline]
+    // pub fn clone_sender_channel(&self) -> Sender<Packet> {
+    //     self.tx_send.clone()
+    // }
 
-    /// Receive a voice packet.
-    #[inline]
-    pub fn recv(&self) -> Result<Option<(SocketAddr, Vec<u8>)>, error::Error> {
-        match self.rx_read.try_recv() {
-            Ok(packet) => Ok(Some(packet)),
-            Err(e) => match e {
-                TryRecvError::Empty => Ok(None),
-                TryRecvError::Disconnected => Err(error::Error::SocketClosed("Reader closed")),
-            },
-        }
-    }
+    // #[inline]
+    // pub fn ref_recv_channel(&self) -> &Receiver<(SocketAddr, Vec<u8>)> {
+    //     &self.rx_read
+    // }
+
+    // /// Send a voice packet.
+    // ///
+    // /// When sucessful `Ok(())` is returned.
+    // /// On error the bytes will be returned.
+    // /// When an error is returned this function will never work again.
+    // #[inline]
+    // pub fn send(&self, bytes: Vec<u8>) -> Result<(), Vec<u8>> {
+    //     match self.tx_send.send(Packet::from(bytes)) {
+    //         Ok(_) => Ok(()),
+    //         Err(e) => Err(e.0.payload),
+    //     }
+    // }
+
+    // /// Receive a voice packet.
+    // #[inline]
+    // pub fn recv(&self) -> Result<Option<(SocketAddr, Vec<u8>)>, error::Error> {
+    //     match self.rx_read.try_recv() {
+    //         Ok(packet) => Ok(Some(packet)),
+    //         Err(e) => match e {
+    //             TryRecvError::Empty => Ok(None),
+    //             TryRecvError::Disconnected => Err(error::Error::SocketClosed("Reader closed")),
+    //         },
+    //     }
+    // }
 }

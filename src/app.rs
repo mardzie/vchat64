@@ -1,3 +1,8 @@
+use std::sync::{
+    Arc,
+    atomic::{self, AtomicBool, Ordering},
+};
+
 use color_eyre::eyre::Result;
 use crossterm::event::{self, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
@@ -14,27 +19,37 @@ pub const KEY_CODE_ACCEPT: KeyCode = KeyCode::Enter;
 pub const KEY_CODE_DECLINE: KeyCode = KeyCode::Esc;
 
 pub struct App {
-    exit: bool,
+    exit: Arc<AtomicBool>,
     state: AppState,
     vchat: VChat,
 }
 
 impl App {
     pub fn new() -> Self {
+        let exit = Arc::new(atomic::AtomicBool::new(false));
+
         Self {
-            exit: Default::default(),
+            exit: exit.clone(),
             state: Default::default(),
-            vchat: VChat::new("127.0.0.1:22000").unwrap(),
+            vchat: VChat::new("127.0.0.1:22000", exit).unwrap(),
         }
     }
 
     pub fn run(&mut self, terminal: &mut ratatui::DefaultTerminal) -> Result<()> {
-        while !self.exit {
+        while !self.exit.load(Ordering::Acquire) {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_event()?;
         }
 
+        self.vchat.audio().pause();
+
+        log::info!("Quitting...");
+
         Ok(())
+    }
+
+    pub fn stop(self) {
+        self.vchat.stop();
     }
 
     pub fn handle_event(&mut self) -> Result<()> {
@@ -61,7 +76,7 @@ impl App {
         match event {
             Event::Key(key_event) => {
                 if key_event.code == KEY_CODE_ACCEPT {
-                    self.exit = true;
+                    self.exit.store(true, Ordering::Release);
                 } else if key_event.code == KEY_CODE_DECLINE {
                     self.state = AppState::App;
                 };
@@ -155,7 +170,7 @@ impl App {
             .title(title)
             .title_bottom(instructions);
         let block_area = block.inner(exit_area);
-        Clear::default().render(exit_area, buf); // Clear exit_area area so no chars shine throug.
+        Clear.render(exit_area, buf); // Clear exit_area area so no chars shine throug.
         block.render(exit_area, buf);
 
         let text = Line::from("Do you want to exit?").centered().red();

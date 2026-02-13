@@ -27,6 +27,10 @@ impl AudioProcessor {
         }
     }
 
+    pub fn stop(self) {
+        self.process_audio_handle.join();
+    }
+
     fn process_audio(
         input_channel: Receiver<Vec<f32>>,
         output_channel: Sender<Vec<f32>>,
@@ -41,7 +45,7 @@ impl AudioProcessor {
                     break;
                 }
             };
-            
+
             // Process audio
 
             match output_channel.send(buf) {
@@ -52,5 +56,7 @@ impl AudioProcessor {
                 }
             };
         }
+
+        log::info!("Audio Processer: Stopped.");
     }
 }
