@@ -28,7 +28,7 @@ impl Audio {
 
         let input = InputStream::new(
             &host,
-            move |buf: &[f32], info| Self::input_data_callback(buf, info, &input_channel),
+            move |buf, info| Self::input_data_callback(buf, info, &input_channel),
             move |e| log::error!("Input Stream Error: {}", e),
         )
         .expect("Failed to create new input stream.");
@@ -61,13 +61,11 @@ impl Audio {
         info: &OutputCallbackInfo,
         output_channel: &Receiver<Vec<f32>>,
     ) {
-        let values = loop {
-            match output_channel.recv() {
-                Ok(values) => break values,
-                Err(e) => {
-                    log::error!("Sender of audio output closed: {}", e);
-                    return;
-                }
+        let values = match output_channel.recv() {
+            Ok(values) => values,
+            Err(e) => {
+                log::error!("Sender of audio output closed channel: {}", e);
+                return;
             }
         };
 
