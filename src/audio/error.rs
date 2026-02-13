@@ -1,17 +1,7 @@
 use std::fmt::Display;
 
-pub use cpal::{BackendSpecificError, DeviceId, DeviceIdError};
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Device not available: Retry with another device.")]
-    DeviceNotAvailable(Result<DeviceId, DeviceIdError>),
-    #[error("Backend Specific Error: {0}")]
-    BackendSpecific(BackendSpecificError),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum StreamError {
     #[error("Default {0} Device not available.")]
     DefaultDeviceNotAvailable(DeviceType),
     #[error("{0} Device not available")]

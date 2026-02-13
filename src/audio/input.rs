@@ -6,7 +6,7 @@ use cpal::{
 
 use crate::audio::{
     config_filter::ConfigFilter,
-    error::{DeviceType, StreamError},
+    error::{DeviceType, Error},
 };
 
 pub struct InputStream {
@@ -20,7 +20,7 @@ impl InputStream {
         host: &Host,
         data_callback: D,
         error_callback: E,
-    ) -> Result<Self, StreamError>
+    ) -> Result<Self, Error>
     where
         T: cpal::SizedSample,
         D: FnMut(&[T], &cpal::InputCallbackInfo) + Send + 'static,
@@ -28,20 +28,20 @@ impl InputStream {
     {
         let device = host
             .default_input_device()
-            .ok_or(StreamError::DefaultDeviceNotAvailable(DeviceType::Input))?;
+            .ok_or(Error::DefaultDeviceNotAvailable(DeviceType::Input))?;
 
         let supported_configs = match device.supported_input_configs() {
             Ok(supported_config) => supported_config,
             Err(e) => {
                 return Err(match e {
                     SupportedStreamConfigsError::DeviceNotAvailable => {
-                        StreamError::DeviceNotAvailable(DeviceType::Input)
+                        Error::DeviceNotAvailable(DeviceType::Input)
                     }
                     SupportedStreamConfigsError::InvalidArgument => {
-                        StreamError::InvalidArgument(DeviceType::Input)
+                        Error::InvalidArgument(DeviceType::Input)
                     }
                     SupportedStreamConfigsError::BackendSpecific { err } => {
-                        StreamError::BackendSpecific(DeviceType::Input, err)
+                        Error::BackendSpecific(DeviceType::Input, err)
                     }
                 });
             }
@@ -56,7 +56,7 @@ impl InputStream {
 
         let stream = device
             .build_input_stream(&config.config(), data_callback, error_callback, None)
-            .map_err(|e| StreamError::BuildStream(DeviceType::Input, e))?;
+            .map_err(|e| Error::BuildStream(DeviceType::Input, e))?;
 
         Ok(Self {
             device,

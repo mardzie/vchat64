@@ -230,7 +230,7 @@ impl UdpNet {
             Ok(packet) => Ok(Some(packet)),
             Err(e) => match e {
                 TryRecvError::Empty => Ok(None),
-                TryRecvError::Disconnected => Err(error::Error::SocketClosed("Reader closed.")),
+                TryRecvError::Disconnected => Err(error::Error::SocketClosed("Reader closed")),
             },
         }
     }

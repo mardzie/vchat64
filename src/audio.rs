@@ -1,4 +1,7 @@
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{
+    Arc, atomic,
+    mpsc::{Receiver, Sender},
+};
 
 use cpal::{Host, InputCallbackInfo, OutputCallbackInfo, default_host};
 
@@ -15,20 +18,30 @@ pub struct Audio {
     input: InputStream,
     output: OutputStream,
     audio_processor: AudioProcessor,
+
+    volume: Arc<atomic::AtomicU8>,
+    cutoff: Arc<atomic::AtomicU8>,
 }
 
 impl Audio {
     /// Creates a new [`Audio`] instance.
     ///
-    /// `input_channel` is the channel where the microphone sends its data.
+    /// `input_channel` is the channel where the microphone data gets sent after processing.
     ///
-    /// `output_channel` is the channel where the data the speaker should play gets sent.
-    pub fn new(input_channel: Sender<Vec<f32>>, output_channel: Receiver<Vec<f32>>) -> Self {
+    /// `output_channel` is the channel that connects to the speaker.
+    pub fn new(
+        input_channel: Sender<Vec<f32>>,
+        output_channel: Receiver<Vec<f32>>,
+        init_volume: u8,
+        init_cutoff: u8,
+    ) -> Self {
         let host = default_host();
+
+        let (input_tx_to_audio_processor, audio_processor_rx) = std::sync::mpsc::channel();
 
         let input = InputStream::new(
             &host,
-            move |buf, info| Self::input_data_callback(buf, info, &input_channel),
+            move |buf, info| Self::input_data_callback(buf, info, &input_tx_to_audio_processor),
             move |e| log::error!("Input Stream Error: {}", e),
         )
         .expect("Failed to create new input stream.");
@@ -40,11 +53,22 @@ impl Audio {
         )
         .expect("Failed to create new output stream.");
 
+        let volume = Arc::new(atomic::AtomicU8::new(init_volume));
+        let cutoff = Arc::new(atomic::AtomicU8::new(init_cutoff));
+        
+        let volume_c = volume.clone();
+        let cutoff_c = cutoff.clone();
+        let audio_processor =
+            AudioProcessor::new(audio_processor_rx, input_channel, volume_c, cutoff_c);
+
         Self {
             input,
             output,
-            audio_processor: AudioProcessor {},
+            audio_processor,
             host,
+
+            volume,
+            cutoff,
         }
     }
 
@@ -53,7 +77,17 @@ impl Audio {
         info: &InputCallbackInfo,
         input_channel: &Sender<Vec<f32>>,
     ) {
-        todo!("Process Audio and ship it to `input_channel`");
+        let buf = buf.to_vec();
+
+        match input_channel.send(buf) {
+            Ok(_) => {}
+            Err(e) => {
+                log::warn!(
+                    "Input Device: Receiver closed channel stopping input device: {}",
+                    e
+                )
+            }
+        }
     }
 
     fn output_data_callback(
@@ -64,7 +98,7 @@ impl Audio {
         let values = match output_channel.recv() {
             Ok(values) => values,
             Err(e) => {
-                log::error!("Sender of audio output closed channel: {}", e);
+                log::warn!("Output Device: Sender closed channel: {}", e);
                 return;
             }
         };

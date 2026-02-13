@@ -6,7 +6,7 @@ use cpal::{
 
 use crate::audio::{
     config_filter::ConfigFilter,
-    error::{DeviceType, StreamError},
+    error::{DeviceType, Error},
 };
 
 pub struct OutputStream {
@@ -20,7 +20,7 @@ impl OutputStream {
         host: &Host,
         data_callback: D,
         error_callback: E,
-    ) -> Result<Self, StreamError>
+    ) -> Result<Self, Error>
     where
         T: cpal::SizedSample,
         D: FnMut(&mut [T], &cpal::OutputCallbackInfo) + Send + 'static,
@@ -28,20 +28,20 @@ impl OutputStream {
     {
         let device = host
             .default_output_device()
-            .ok_or(StreamError::DefaultDeviceNotAvailable(DeviceType::Output))?;
+            .ok_or(Error::DefaultDeviceNotAvailable(DeviceType::Output))?;
 
         let supported_configs = match device.supported_output_configs() {
             Ok(supported_config) => supported_config,
             Err(e) => {
                 return Err(match e {
                     SupportedStreamConfigsError::DeviceNotAvailable => {
-                        StreamError::DeviceNotAvailable(DeviceType::Output)
+                        Error::DeviceNotAvailable(DeviceType::Output)
                     }
                     SupportedStreamConfigsError::InvalidArgument => {
-                        StreamError::InvalidArgument(DeviceType::Output)
+                        Error::InvalidArgument(DeviceType::Output)
                     }
                     SupportedStreamConfigsError::BackendSpecific { err } => {
-                        StreamError::BackendSpecific(DeviceType::Output, err)
+                        Error::BackendSpecific(DeviceType::Output, err)
                     }
                 });
             }
@@ -56,7 +56,7 @@ impl OutputStream {
 
         let stream = device
             .build_output_stream(&config.config(), data_callback, error_callback, None)
-            .map_err(|e| StreamError::BuildStream(DeviceType::Output, e))?;
+            .map_err(|e| Error::BuildStream(DeviceType::Output, e))?;
 
         Ok(Self {
             device,

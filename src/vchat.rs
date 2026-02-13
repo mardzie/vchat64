@@ -16,8 +16,11 @@ impl VChat {
     where
         A: ToSocketAddrs,
     {
+        let (mic_input_tx, mic_output_rx) = std::sync::mpsc::channel();
+        let (speaker_input_tx, speaker_output_rx) = std::sync::mpsc::channel();
+
         Ok(Self {
-            audio: Audio::new(),
+            audio: Audio::new(mic_input_tx, speaker_output_rx, u8::MAX, 50),
             udp_net: UdpNet::new(addr)?,
         })
     }
