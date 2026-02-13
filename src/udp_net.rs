@@ -41,6 +41,7 @@ impl UdpNet {
 
         let socket_writer = UdpSocket::bind(addr)?;
         let socket_reader = socket_writer.try_clone()?;
+        socket_writer.set_nonblocking(false);
 
         let (tx_write, rx_write) = mpsc::channel::<Packet>();
         let (tx_read, rx_read) = mpsc::channel::<(SocketAddr, Vec<u8>)>();
@@ -182,10 +183,12 @@ impl UdpNet {
         }
     }
 
+    #[inline]
     pub fn is_address_known(&self, addr: &SocketAddr) -> bool {
         Self::contains_address(&self.addresses, addr)
     }
 
+    #[inline]
     fn contains_address(addresses: &Arc<RwLock<Vec<SocketAddr>>>, addr: &SocketAddr) -> bool {
         addresses
             .read()
@@ -193,10 +196,16 @@ impl UdpNet {
             .contains(addr)
     }
 
+    #[inline]
+    pub fn clone_sender_channel(&self) -> Sender<Packet> {
+        self.tx_send.clone()
+    }
+
     /// Send a voice packet.
     ///
     /// When sucessful `Ok(())` is returned.
     /// On error the bytes will be returned.
+    #[inline]
     pub fn send(&self, bytes: Vec<u8>) -> Result<(), Vec<u8>> {
         match self.tx_send.send(Packet::from(bytes)) {
             Ok(_) => Ok(()),
@@ -205,6 +214,7 @@ impl UdpNet {
     }
 
     /// Receive a voice packet.
+    #[inline]
     pub fn recv(&self) -> Result<Option<(SocketAddr, Vec<u8>)>, error::Error> {
         match self.rx_read.try_recv() {
             Ok(packet) => Ok(Some(packet)),

@@ -1,23 +1,22 @@
 use color_eyre::eyre::Result;
 use crossterm::event::{self, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
-    Frame,
     crossterm::event::Event,
     layout::{Constraint, Layout},
-    style::{Color, Style, Stylize},
+    style::Stylize,
     text::Line,
-    widgets::{Block, BorderType, Borders, Clear, List, Paragraph, Widget},
+    widgets::{Block, BorderType, Borders, Clear, Widget},
 };
 
-use crate::state::AppState;
+use crate::{state::AppState, vchat::VChat};
 
 pub const KEY_CODE_ACCEPT: KeyCode = KeyCode::Enter;
 pub const KEY_CODE_DECLINE: KeyCode = KeyCode::Esc;
 
-#[derive(Debug)]
 pub struct App {
     exit: bool,
     state: AppState,
+    vchat: VChat,
 }
 
 impl App {
@@ -25,6 +24,7 @@ impl App {
         Self {
             exit: Default::default(),
             state: Default::default(),
+            vchat: VChat::new("127.0.0.1:22000").unwrap(),
         }
     }
 
@@ -129,13 +129,16 @@ impl App {
     }
 
     fn render_exit_area(&self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
-        let vertical_layout =
-            Layout::vertical([Constraint::Fill(1), Constraint::Max(5), Constraint::Fill(1)]);
+        let vertical_layout = Layout::vertical([
+            Constraint::Fill(1),
+            Constraint::Length(5),
+            Constraint::Fill(1),
+        ]);
         let [_, vertical_exit_area, _] = vertical_layout.areas(area);
 
         let middle_layout = Layout::horizontal([
             Constraint::Fill(1),
-            Constraint::Max(32),
+            Constraint::Length(32),
             Constraint::Fill(1),
         ]);
         let [_, exit_area, _] = middle_layout.areas(vertical_exit_area);

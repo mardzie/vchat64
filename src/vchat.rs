@@ -2,12 +2,12 @@ use std::net::{SocketAddr, ToSocketAddrs};
 
 use color_eyre::eyre::Result;
 
-use crate::udp_net::UdpNet;
+use crate::{audio::Audio, udp_net::UdpNet};
 
 pub mod error;
 
-#[derive(Debug)]
 pub struct VChat {
+    audio: Audio,
     udp_net: UdpNet,
 }
 
@@ -17,6 +17,7 @@ impl VChat {
         A: ToSocketAddrs,
     {
         Ok(Self {
+            audio: Audio::new(),
             udp_net: UdpNet::new(addr)?,
         })
     }
@@ -35,10 +36,12 @@ impl VChat {
         Ok(())
     }
 
+    #[inline]
     pub fn get_addresses(&self) -> &std::sync::Arc<std::sync::RwLock<Vec<SocketAddr>>> {
         &self.udp_net.addresses
     }
 
+    #[inline]
     pub fn clear_addresses(&self) {
         self.udp_net
             .addresses
