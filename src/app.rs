@@ -14,7 +14,7 @@ use ratatui::{
     layout::{Constraint, Layout},
     style::Stylize,
     text::Line,
-    widgets::{Block, BorderType, Borders, Clear, Widget},
+    widgets::{Block, BorderType, Borders, Clear, List, Widget},
 };
 
 use crate::{state::AppState, vchat::VChat};
@@ -35,7 +35,7 @@ impl App {
         Self {
             exit: exit.clone(),
             state: Default::default(),
-            vchat: VChat::new("127.0.0.1:22000", exit).unwrap(),
+            vchat: VChat::new("0.0.0.0:22000", exit).unwrap(),
         }
     }
 
@@ -160,6 +160,19 @@ impl App {
             .title(title);
         let block_area = block.inner(area);
         block.render(area, buf);
+
+        let addresses: Vec<String> = self
+            .vchat
+            .get_addresses()
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .to_vec()
+            .into_iter()
+            .map(|addr| addr.to_string())
+            .collect();
+
+        let list = List::new(addresses);
+        list.render(block_area, buf);
     }
 
     fn render_exit_area(&self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
