@@ -109,8 +109,37 @@ impl Audio {
         };
 
         let buf_len = buf.len();
-        let buf_used = sample.len().min(buf_len);
+        let mut buf_used = sample.len().min(buf_len);
         buf[..buf_used].copy_from_slice(&sample[..buf_used]);
+
+        Self::try_fill_remaining(output_channel, buf, &mut buf_used, buf_len);
+    }
+
+    /// Tries to fill remaining `buf` space from `output_channel`.
+    fn try_fill_remaining(
+        output_channel: &Receiver<Vec<f32>>,
+        buf: &mut [f32],
+        buf_used: &mut usize,
+        buf_len: usize,
+    ) {
+        let mut peekable = output_channel.iter().peekable();
+        while *buf_used < buf_len
+            && let Some(sample) = peekable.peek_mut()
+        {
+            let buf_space = buf_len - *buf_used;
+            let sample_len = sample.len();
+            if sample_len > buf_space {
+                let extracted = sample.split_off(buf_space);
+                buf[*buf_used..buf_len].copy_from_slice(&extracted);
+            } else {
+                let sample = peekable
+                    .next()
+                    .expect("Has to be `Some`. Outer loop checked for it.");
+                let new_used = *buf_used + sample_len;
+                buf[*buf_used..new_used].copy_from_slice(&sample);
+                *buf_used = new_used
+            };
+        }
     }
 
     #[inline]
