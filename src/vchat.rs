@@ -6,21 +6,14 @@ use std::{
         mpsc::{Receiver, RecvTimeoutError, Sender},
     },
     thread::{self, JoinHandle},
-    time::Duration,
 };
 
 use color_eyre::eyre::Result;
-use rayon::{
-    iter::{
-        IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator, ParallelIterator,
-    },
-    slice::ParallelSliceMut,
-};
 
 use crate::{
     TIMEOUT,
     audio::Audio,
-    udp_net::{UdpNet, packet::Packet},
+    udp_net::{MAX_PAYLOAD_SIZE, UdpNet, packet::Packet},
 };
 
 pub struct VChat {
@@ -39,16 +32,18 @@ impl VChat {
         let (mic_input_tx, mic_output_rx) = std::sync::mpsc::channel();
         let (speaker_input_tx, speaker_output_rx) = std::sync::mpsc::channel();
 
-        let (udp_net, udp_sender, udp_receiver) = UdpNet::new(addr)?;
+        let exit_c = exit.clone();
+        let (udp_net, udp_sender, udp_receiver) = UdpNet::new(addr, exit_c)?;
 
         let exit_c = exit.clone();
         let input_udp_bridge_handle =
             thread::spawn(move || Self::input_udp_bridge(mic_output_rx, udp_sender, exit_c));
 
+        let exit_c = exit.clone();
         let udp_output_bridge_handle =
-            thread::spawn(move || Self::udp_output_bridge(udp_receiver, speaker_input_tx, exit));
+            thread::spawn(move || Self::udp_output_bridge(udp_receiver, speaker_input_tx, exit_c));
 
-        let audio = Audio::new(mic_input_tx, speaker_output_rx, u8::MAX, 50);
+        let audio = Audio::new(mic_input_tx, speaker_output_rx, u8::MAX, 50, exit);
         audio.play();
 
         Ok(Self {
@@ -74,6 +69,7 @@ impl VChat {
                 Ok(data) => data,
                 Err(e) => {
                     if let RecvTimeoutError::Timeout = e {
+                        thread::yield_now();
                         continue;
                     } else {
                         log::warn!("Input UDP Bridge: Input stream closed: {}", e);
@@ -82,15 +78,26 @@ impl VChat {
                 }
             };
 
-            let bytes: Vec<u8> = data.par_iter().map(|x| x.to_be_bytes()).flatten().collect();
+            // Conert into bytes and split up into packets.
+            let byte_packets: Vec<Vec<u8>> = data
+                .chunks(MAX_PAYLOAD_SIZE / 4)
+                .map(|chunk| {
+                    chunk
+                        .iter()
+                        .flat_map(|sample| sample.to_be_bytes())
+                        .collect::<Vec<u8>>()
+                })
+                .collect();
 
-            match udp_sender.send(Packet::from(bytes)) {
-                Ok(_) => {}
-                Err(_) => {
-                    log::warn!("Input UDP Bridge: UDP Stream closed.");
-                    break;
-                }
-            };
+            for bytes in byte_packets {
+                match udp_sender.send(Packet::from(bytes)) {
+                    Ok(_) => {}
+                    Err(_) => {
+                        log::warn!("Input UDP Bridge: UDP Stream closed.");
+                        break;
+                    }
+                };
+            }
         }
 
         log::info!("Input UDP Bridge: Stopped.");
@@ -112,6 +119,7 @@ impl VChat {
                 Ok(packet) => packet,
                 Err(e) => {
                     if let RecvTimeoutError::Timeout = e {
+                        thread::yield_now();
                         continue;
                     } else {
                         log::warn!("UDP Output Bridge: Failed to recv new packet: {}", e);
@@ -126,18 +134,16 @@ impl VChat {
                 bytes.len()
             );
 
-            let data_bytes: Vec<[u8; 4]> = bytes
-                .into_par_iter()
+            let data: Vec<f32> = bytes
                 .chunks(AUDIO_VALUE_BYTE_LEN)
                 .map(|chunk| {
                     let mut buf = [0u8; AUDIO_VALUE_BYTE_LEN];
-                    buf.copy_from_slice(&chunk);
+                    buf.copy_from_slice(chunk);
 
                     buf
                 })
+                .map(f32::from_be_bytes)
                 .collect();
-
-            let data: Vec<f32> = data_bytes.into_par_iter().map(f32::from_be_bytes).collect();
 
             match output_tx.send(data) {
                 Ok(_) => {}
@@ -159,7 +165,7 @@ impl VChat {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         addresses.push(addr);
-        addresses.par_sort();
+        addresses.sort();
         addresses.dedup();
     }
 
@@ -191,7 +197,7 @@ impl VChat {
         self.audio.stop();
         self.udp_net.stop();
 
-        self.input_udp_bridge_handle.join();
-        self.udp_output_bridge_handle.join();
+        let _ = self.input_udp_bridge_handle.join();
+        let _ = self.udp_output_bridge_handle.join();
     }
 }

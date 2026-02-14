@@ -36,14 +36,14 @@ impl App {
     }
 
     pub fn run(&mut self, terminal: &mut ratatui::DefaultTerminal) -> Result<()> {
+        log::info!("VChat64 running...");
+
         while !self.exit.load(Ordering::Acquire) {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_event()?;
         }
 
         self.vchat.audio().pause();
-
-        log::info!("Quitting...");
 
         Ok(())
     }
@@ -77,8 +77,10 @@ impl App {
             Event::Key(key_event) => {
                 if key_event.code == KEY_CODE_ACCEPT {
                     self.exit.store(true, Ordering::Release);
+                    log::info!("Exiting...");
                 } else if key_event.code == KEY_CODE_DECLINE {
                     self.state = AppState::App;
+                    log::info!("Canceled exiting.");
                 };
             }
             _ => {}
@@ -92,6 +94,7 @@ impl App {
             KeyEventKind::Press => match key_event.code {
                 KeyCode::Char('q') => {
                     self.state = crate::state::AppState::Exit;
+                    log::info!("Into exit state.");
                 }
                 _ => {}
             },

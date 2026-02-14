@@ -1,5 +1,6 @@
 use std::sync::{
-    Arc, atomic,
+    Arc,
+    atomic::{self, AtomicBool},
     mpsc::{Receiver, Sender},
 };
 
@@ -34,6 +35,8 @@ impl Audio {
         output_channel: Receiver<Vec<f32>>,
         init_volume: u8,
         init_cutoff: u8,
+
+        exit: Arc<AtomicBool>,
     ) -> Self {
         let host = default_host();
 
@@ -59,7 +62,7 @@ impl Audio {
         let volume_c = volume.clone();
         let cutoff_c = cutoff.clone();
         let audio_processor =
-            AudioProcessor::new(audio_processor_rx, input_channel, volume_c, cutoff_c);
+            AudioProcessor::new(audio_processor_rx, input_channel, volume_c, cutoff_c, exit);
 
         Self {
             input,
@@ -97,16 +100,17 @@ impl Audio {
         info: &OutputCallbackInfo,
         output_channel: &Receiver<Vec<f32>>,
     ) {
-        let values = match output_channel.recv() {
-            Ok(values) => values,
+        let sample = match output_channel.recv() {
+            Ok(sample) => sample,
             Err(e) => {
                 log::warn!("Output Device: Sender closed channel: {}", e);
                 return;
             }
         };
 
-        let len = values.len().min(buf.len());
-        buf[..len].copy_from_slice(&values[..len]);
+        let buf_len = buf.len();
+        let buf_used = sample.len().min(buf_len);
+        buf[..buf_used].copy_from_slice(&sample[..buf_used]);
     }
 
     #[inline]

@@ -1,11 +1,11 @@
 //! This module handles all the in- and outgoing UDP traffic.
 
 use std::{
-    io,
     net::{SocketAddr, ToSocketAddrs, UdpSocket},
     sync::{
         Arc, RwLock,
-        mpsc::{self, Receiver, Sender},
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Receiver, Sender, TryRecvError},
     },
     thread,
 };
@@ -17,6 +17,10 @@ pub mod packet;
 
 use packet::{HEADER_LEN, Header, Packet};
 
+/// The max payload size is 512 bytes.
+///
+/// This is to maximize througput and minimize latency and bytes lost.
+pub const MAX_PAYLOAD_SIZE: usize = 512;
 pub const MAX_PACKAGE_AGE_SEC: i64 = 10;
 
 /// The UDP Socket handler.
@@ -34,6 +38,7 @@ pub struct UdpNet {
 impl UdpNet {
     pub fn new<A>(
         addr: A,
+        exit: Arc<AtomicBool>,
     ) -> Result<(Self, Sender<Packet>, Receiver<(SocketAddr, Vec<u8>)>), error::Error>
     where
         A: ToSocketAddrs,
@@ -45,16 +50,17 @@ impl UdpNet {
         let socket_writer = UdpSocket::bind(addr)?;
         let socket_reader = socket_writer.try_clone()?;
         socket_writer
-            .set_nonblocking(false)
+            .set_nonblocking(true)
             .expect("Failed to put socket into blocking mode!");
 
         let (tx_write, rx_write) = mpsc::channel::<Packet>();
         let (tx_read, rx_read) = mpsc::channel::<(SocketAddr, Vec<u8>)>();
 
+        let exit_c = exit.clone();
         let writer_handle =
-            thread::spawn(move || Self::writer(socket_writer, writer_addresses, rx_write));
+            thread::spawn(move || Self::writer(socket_writer, writer_addresses, rx_write, exit_c));
         let reader_handle =
-            thread::spawn(move || Self::reader(socket_reader, tx_read, reader_addresses));
+            thread::spawn(move || Self::reader(socket_reader, tx_read, reader_addresses, exit));
 
         Ok((
             UdpNet {
@@ -72,16 +78,26 @@ impl UdpNet {
         socket: UdpSocket,
         addresses: Arc<RwLock<Vec<SocketAddr>>>,
         rx_write: Receiver<Packet>,
+        exit: Arc<AtomicBool>,
     ) {
         loop {
-            let packet_bytes = match rx_write.recv() {
+            if exit.load(Ordering::Acquire) {
+                break;
+            };
+
+            let packet_bytes = match rx_write.try_recv() {
                 Ok(mut packet) => {
                     packet.update_timestamp();
                     packet.into_bytes()
                 }
-                Err(_) => {
-                    log::warn!("Write channel closed: Stopping writer worker.");
-                    break;
+                Err(e) => {
+                    if let TryRecvError::Empty = e {
+                        thread::yield_now();
+                        continue;
+                    } else {
+                        log::warn!("Write channel closed: Stopping writer worker.");
+                        break;
+                    };
                 }
             };
 
@@ -96,7 +112,7 @@ impl UdpNet {
                 };
             }
         }
-        
+
         log::info!("UDP Writer: Stopped.");
     }
 
@@ -105,17 +121,27 @@ impl UdpNet {
         socket: UdpSocket,
         tx_read: Sender<(SocketAddr, Vec<u8>)>,
         addresses: Arc<RwLock<Vec<SocketAddr>>>,
+        exit: Arc<AtomicBool>,
     ) {
         let packet_version: u32 = calculate_version();
 
         let mut buf = [0u8; u16::MAX as usize];
         let mut last_packet_timestamp = chrono::DateTime::UNIX_EPOCH;
         loop {
+            if exit.load(Ordering::Acquire) {
+                break;
+            };
+
             let (len, src_addr) = match socket.recv_from(&mut buf) {
                 Ok((len, src_addr)) => (len, src_addr),
                 Err(e) => {
-                    log::error!("Failed to receive message: {}", e);
-                    break;
+                    if let std::io::ErrorKind::WouldBlock = e.kind() {
+                        thread::yield_now();
+                        continue;
+                    } else {
+                        log::error!("Failed to receive message: {}", e);
+                        break;
+                    };
                 }
             };
 
@@ -218,13 +244,8 @@ impl UdpNet {
     }
 
     pub fn stop(self) {
-        self.addresses
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .clear();
-
-        self.writer_handle.join();
-        self.reader_handle.join();
+        let _ = self.reader_handle.join();
+        let _ = self.writer_handle.join();
     }
 
     // #[inline]

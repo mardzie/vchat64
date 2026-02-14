@@ -1,7 +1,8 @@
 use std::{
     sync::{
-        Arc, atomic,
-        mpsc::{Receiver, Sender},
+        Arc,
+        atomic::{self, AtomicBool},
+        mpsc::{Receiver, Sender, TryRecvError},
     },
     thread::{self, JoinHandle},
 };
@@ -17,9 +18,11 @@ impl AudioProcessor {
         output_channel: Sender<Vec<f32>>,
         volume: Arc<atomic::AtomicU8>,
         cutoff: Arc<atomic::AtomicU8>,
+
+        exit: Arc<AtomicBool>,
     ) -> Self {
         let process_audio_handle = thread::spawn(move || {
-            Self::process_audio(input_channel, output_channel.clone(), volume, cutoff)
+            Self::process_audio(input_channel, output_channel.clone(), volume, cutoff, exit)
         });
 
         Self {
@@ -27,22 +30,29 @@ impl AudioProcessor {
         }
     }
 
-    pub fn stop(self) {
-        self.process_audio_handle.join();
-    }
-
     fn process_audio(
         input_channel: Receiver<Vec<f32>>,
         output_channel: Sender<Vec<f32>>,
         volume: Arc<atomic::AtomicU8>,
         cutoff: Arc<atomic::AtomicU8>,
+
+        exit: Arc<AtomicBool>,
     ) {
         loop {
-            let buf = match input_channel.recv() {
+            if exit.load(atomic::Ordering::Acquire) {
+                break;
+            };
+
+            let buf = match input_channel.try_recv() {
                 Ok(buf) => buf,
                 Err(e) => {
-                    log::warn!("Process Audio: Input Channel sender closed: {}", e);
-                    break;
+                    if let TryRecvError::Empty = e {
+                        thread::yield_now();
+                        continue;
+                    } else {
+                        log::warn!("Process Audio: Input Channel sender closed: {}", e);
+                        break;
+                    };
                 }
             };
 
@@ -58,5 +68,9 @@ impl AudioProcessor {
         }
 
         log::info!("Audio Processer: Stopped.");
+    }
+
+    pub fn stop(self) {
+        let _ = self.process_audio_handle.join();
     }
 }
