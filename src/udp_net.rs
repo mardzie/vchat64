@@ -145,6 +145,8 @@ impl UdpNet {
                 }
             };
 
+            log::trace!("Read {} bytes from {}", len, src_addr);
+
             // Check if address is known.
             if !Self::contains_address(&addresses, &src_addr) {
                 log::warn!(
