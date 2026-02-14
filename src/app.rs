@@ -1,6 +1,10 @@
-use std::sync::{
-    Arc,
-    atomic::{self, AtomicBool, Ordering},
+use std::{
+    net::SocketAddr,
+    str::FromStr,
+    sync::{
+        Arc,
+        atomic::{self, AtomicBool, Ordering},
+    },
 };
 
 use color_eyre::eyre::Result;
@@ -37,6 +41,18 @@ impl App {
 
     pub fn run(&mut self, terminal: &mut ratatui::DefaultTerminal) -> Result<()> {
         log::info!("VChat64 running...");
+
+        let mut args: Vec<String> = std::env::args().collect();
+        args.remove(0);
+
+        for arg in args {
+            match SocketAddr::from_str(&arg) {
+                Ok(addr) => self.vchat.add_address(addr),
+                Err(e) => {
+                    log::warn!("Failed to parse '{}' to address: {}", arg, e);
+                }
+            };
+        }
 
         while !self.exit.load(Ordering::Acquire) {
             terminal.draw(|frame| self.draw(frame))?;
