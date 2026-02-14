@@ -44,7 +44,7 @@ impl OutputStream {
         };
 
         let config = ConfigFilter::from_supported_output_config(supported_configs)
-            .filter_channel_count(2)
+            .filter_channel_count(4)
             .filter_sample_format(cpal::SampleFormat::F32)
             .pop()
             .expect("Failed to find acceptable output stream config.")

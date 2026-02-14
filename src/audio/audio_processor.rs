@@ -50,18 +50,19 @@ impl AudioProcessor {
                         thread::yield_now();
                         continue;
                     } else {
-                        log::warn!("Process Audio: Input Channel sender closed: {}", e);
+                        log::warn!("Audio Processor: Input Channel sender closed: {}", e);
                         break;
                     };
                 }
             };
 
             // Process audio
+            log::trace!("Audio Processor: Processing sample {} bytes", buf.len() * 4);
 
             match output_channel.send(buf) {
                 Ok(_) => {}
                 Err(e) => {
-                    log::warn!("Process Audio: Output Channel receiver closed: {}", e);
+                    log::warn!("Audio Prcessor: Output Channel receiver closed: {}", e);
                     break;
                 }
             };

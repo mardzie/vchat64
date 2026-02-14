@@ -55,7 +55,7 @@ impl Audio {
         let output = OutputStream::new(
             &host,
             move |buf, info| {
-                Self::output_data_callback(buf, info, &mut output_channel.iter().peekable())
+                Self::output_data_callback(buf, info, &mut output_channel.try_iter().peekable())
             },
             move |e| log::error!("Output Stream Error: {}", e),
         )
@@ -86,9 +86,7 @@ impl Audio {
         info: &InputCallbackInfo,
         input_channel: &Sender<Vec<f32>>,
     ) {
-        let buf = buf.to_vec();
-
-        match input_channel.send(buf) {
+        match input_channel.send(buf.to_vec()) {
             Ok(_) => {}
             Err(e) => {
                 log::warn!(
@@ -96,14 +94,19 @@ impl Audio {
                     e
                 )
             }
-        }
+        };
+
+        log::trace!(
+            "Input Data Callback: Got called and read {} bytes",
+            buf.len()
+        );
     }
 
     #[inline]
     fn output_data_callback(
         buf: &mut [f32],
         info: &OutputCallbackInfo,
-        output_channel: &mut Peekable<crossbeam::channel::Iter<Vec<f32>>>,
+        output_channel: &mut Peekable<crossbeam::channel::TryIter<Vec<f32>>>,
     ) {
         let sample = match output_channel.next() {
             Some(sample) => sample,
@@ -113,16 +116,20 @@ impl Audio {
             }
         };
 
+        log::trace!("Output Data Callback: Got sample {} bytes", sample.len());
+
         let buf_len = buf.len();
         let mut buf_used = sample.len().min(buf_len);
         buf[..buf_used].copy_from_slice(&sample[..buf_used]);
 
         Self::try_fill_remaining(output_channel, buf, &mut buf_used, buf_len);
+
+        buf[buf_used..buf_len].fill(0.0);
     }
 
     /// Tries to fill remaining `buf` space from `output_channel`.
     fn try_fill_remaining(
-        output_channel: &mut Peekable<crossbeam::channel::Iter<Vec<f32>>>,
+        output_channel: &mut Peekable<crossbeam::channel::TryIter<Vec<f32>>>,
         buf: &mut [f32],
         buf_used: &mut usize,
         buf_len: usize,
@@ -137,13 +144,23 @@ impl Audio {
                 let extracted: Vec<f32> = sample.drain(..buf_space).collect();
                 buf[*buf_used..buf_len].copy_from_slice(&extracted);
                 *buf_used = buf_len;
+                log::trace!(
+                    "Output Data Callback: Filled remaining space with {} of {} samples from new sample",
+                    buf_space,
+                    sample_len
+                );
             } else {
                 let sample = output_channel
                     .next()
                     .expect("Has to be `Some`. Outer loop checked for it.");
                 let new_used = *buf_used + sample_len;
                 buf[*buf_used..new_used].copy_from_slice(&sample);
-                *buf_used = new_used
+                *buf_used = new_used;
+                log::trace!(
+                    "Output Data Callback: Filled space with {} samples of full extra sample, remaining space {}",
+                    sample_len,
+                    buf_len - *buf_used
+                );
             };
         }
     }
@@ -192,7 +209,7 @@ mod audio_test {
     #[test]
     fn test_try_fill_remaining_single_recv_clean() {
         let (mut buf, tx, rx) = get_setup();
-        let mut rx = rx.iter().peekable();
+        let mut rx = rx.try_iter().peekable();
 
         tx.send(vec![2.0, 3.0, 4.0, 5.0]).unwrap();
 
@@ -207,7 +224,7 @@ mod audio_test {
     #[test]
     fn test_try_fill_remaining_multi_recv_clean() {
         let (mut buf, tx, rx) = get_setup();
-        let mut rx = rx.iter().peekable();
+        let mut rx = rx.try_iter().peekable();
 
         tx.send(vec![2.0, 3.0]).unwrap();
         tx.send(vec![4.0, 5.0]).unwrap();
@@ -223,7 +240,7 @@ mod audio_test {
     #[test]
     fn test_try_fill_remaining_single_recv_remaining() {
         let (mut buf, tx, rx) = get_setup();
-        let mut rx = rx.iter().peekable();
+        let mut rx = rx.try_iter().peekable();
 
         tx.send(vec![2.0, 3.0, 4.0, 5.0, 6.0, 7.0]).unwrap();
 
@@ -239,7 +256,7 @@ mod audio_test {
     #[test]
     fn test_try_fill_remaining_multi_recv_remaining() {
         let (mut buf, tx, rx) = get_setup();
-        let mut rx = rx.iter().peekable();
+        let mut rx = rx.try_iter().peekable();
 
         tx.send(vec![2.0, 3.0, 4.0]).unwrap();
         tx.send(vec![5.0, 6.0, 7.0]).unwrap();

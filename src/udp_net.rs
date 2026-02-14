@@ -101,6 +101,8 @@ impl UdpNet {
                 }
             };
 
+            log::trace!("UDP Writer: Writing packet {} bytes", packet_bytes.len());
+
             for addr in addresses
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -145,7 +147,7 @@ impl UdpNet {
                 }
             };
 
-            log::trace!("Read {} bytes from {}", len, src_addr);
+            log::trace!("UDP Reader: Read {} bytes from {}", len, src_addr);
 
             // Check if address is known.
             if !Self::contains_address(&addresses, &src_addr) {
@@ -215,6 +217,8 @@ impl UdpNet {
             };
             last_packet_timestamp = packet_timestamp;
 
+            log::trace!("UDP Reader: Received valid message.");
+
             let (_, payload) = packet.split();
             match tx_read.send((src_addr, payload)) {
                 Ok(_) => {}
@@ -225,8 +229,6 @@ impl UdpNet {
                     continue;
                 }
             };
-
-            log::debug!("Received valid message.");
         }
 
         log::info!("UDP Reader: Stopped.");

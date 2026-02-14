@@ -78,7 +78,7 @@ impl VChat {
                 }
             };
 
-            // Conert into bytes and split up into packets.
+            // Convert into bytes and split up into packets.
             let byte_packets: Vec<Vec<u8>> = data
                 .chunks(MAX_PAYLOAD_SIZE / 4)
                 .map(|chunk| {
@@ -88,6 +88,12 @@ impl VChat {
                         .collect::<Vec<u8>>()
                 })
                 .collect();
+
+            log::trace!(
+                "Input UDP Bridge: Preparing {} packet {} bytes.",
+                byte_packets.len(),
+                byte_packets[0].len()
+            );
 
             for bytes in byte_packets {
                 match udp_sender.send(Packet::from(bytes)) {
@@ -128,7 +134,7 @@ impl VChat {
                 }
             };
 
-            log::info!(
+            log::trace!(
                 "UDP Output Bridge: Got message from {} with size {}",
                 addr,
                 bytes.len()
