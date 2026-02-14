@@ -30,7 +30,7 @@ impl VChat {
         A: ToSocketAddrs,
     {
         let (mic_input_tx, mic_output_rx) = std::sync::mpsc::channel();
-        let (speaker_input_tx, speaker_output_rx) = std::sync::mpsc::channel();
+        let (speaker_input_tx, speaker_output_rx) = crossbeam::channel::unbounded();
 
         let exit_c = exit.clone();
         let (udp_net, udp_sender, udp_receiver) = UdpNet::new(addr, exit_c)?;
@@ -105,7 +105,7 @@ impl VChat {
 
     fn udp_output_bridge(
         udp_receiver: Receiver<(SocketAddr, Vec<u8>)>,
-        output_tx: Sender<Vec<f32>>,
+        output_tx: crossbeam::channel::Sender<Vec<f32>>,
         exit: Arc<AtomicBool>,
     ) {
         const AUDIO_VALUE_BYTE_LEN: usize = 4;

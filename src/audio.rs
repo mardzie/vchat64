@@ -1,7 +1,10 @@
-use std::sync::{
-    Arc,
-    atomic::{self, AtomicBool},
-    mpsc::{Receiver, Sender},
+use std::{
+    iter::Peekable,
+    sync::{
+        Arc,
+        atomic::{self, AtomicBool},
+        mpsc::Sender,
+    },
 };
 
 use cpal::{Host, InputCallbackInfo, OutputCallbackInfo, default_host};
@@ -32,7 +35,7 @@ impl Audio {
     /// `output_channel` is the channel that connects to the speaker.
     pub fn new(
         input_channel: Sender<Vec<f32>>,
-        output_channel: Receiver<Vec<f32>>,
+        output_channel: crossbeam::channel::Receiver<Vec<f32>>,
         init_volume: u8,
         init_cutoff: u8,
 
@@ -51,7 +54,9 @@ impl Audio {
 
         let output = OutputStream::new(
             &host,
-            move |buf, info| Self::output_data_callback(buf, info, &output_channel),
+            move |buf, info| {
+                Self::output_data_callback(buf, info, &mut output_channel.iter().peekable())
+            },
             move |e| log::error!("Output Stream Error: {}", e),
         )
         .expect("Failed to create new output stream.");
@@ -98,12 +103,12 @@ impl Audio {
     fn output_data_callback(
         buf: &mut [f32],
         info: &OutputCallbackInfo,
-        output_channel: &Receiver<Vec<f32>>,
+        output_channel: &mut Peekable<crossbeam::channel::Iter<Vec<f32>>>,
     ) {
-        let sample = match output_channel.recv() {
-            Ok(sample) => sample,
-            Err(e) => {
-                log::warn!("Output Device: Sender closed channel: {}", e);
+        let sample = match output_channel.next() {
+            Some(sample) => sample,
+            None => {
+                log::warn!("Output Device: Sender closed channel");
                 return;
             }
         };
@@ -117,22 +122,23 @@ impl Audio {
 
     /// Tries to fill remaining `buf` space from `output_channel`.
     fn try_fill_remaining(
-        output_channel: &Receiver<Vec<f32>>,
+        output_channel: &mut Peekable<crossbeam::channel::Iter<Vec<f32>>>,
         buf: &mut [f32],
         buf_used: &mut usize,
         buf_len: usize,
     ) {
-        let mut peekable = output_channel.iter().peekable();
         while *buf_used < buf_len
-            && let Some(sample) = peekable.peek_mut()
+            && let Some(sample) = output_channel.peek_mut()
         {
             let buf_space = buf_len - *buf_used;
             let sample_len = sample.len();
+
             if sample_len > buf_space {
-                let extracted = sample.split_off(buf_space);
+                let extracted: Vec<f32> = sample.drain(..buf_space).collect();
                 buf[*buf_used..buf_len].copy_from_slice(&extracted);
+                *buf_used = buf_len;
             } else {
-                let sample = peekable
+                let sample = output_channel
                     .next()
                     .expect("Has to be `Some`. Outer loop checked for it.");
                 let new_used = *buf_used + sample_len;
@@ -176,5 +182,84 @@ impl Audio {
 
     pub fn stop(self) {
         self.audio_processor.stop();
+    }
+}
+
+#[cfg(test)]
+mod audio_test {
+    use crate::audio::Audio;
+
+    #[test]
+    fn test_try_fill_remaining_single_recv_clean() {
+        let (mut buf, tx, rx) = get_setup();
+        let mut rx = rx.iter().peekable();
+
+        tx.send(vec![2.0, 3.0, 4.0, 5.0]).unwrap();
+
+        let mut buf_used = 2;
+        let buf_len = buf.len();
+
+        Audio::try_fill_remaining(&mut rx, &mut buf, &mut buf_used, buf_len);
+
+        assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
+    }
+
+    #[test]
+    fn test_try_fill_remaining_multi_recv_clean() {
+        let (mut buf, tx, rx) = get_setup();
+        let mut rx = rx.iter().peekable();
+
+        tx.send(vec![2.0, 3.0]).unwrap();
+        tx.send(vec![4.0, 5.0]).unwrap();
+
+        let mut buf_used = 2;
+        let buf_len = buf.len();
+
+        Audio::try_fill_remaining(&mut rx, &mut buf, &mut buf_used, buf_len);
+
+        assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
+    }
+
+    #[test]
+    fn test_try_fill_remaining_single_recv_remaining() {
+        let (mut buf, tx, rx) = get_setup();
+        let mut rx = rx.iter().peekable();
+
+        tx.send(vec![2.0, 3.0, 4.0, 5.0, 6.0, 7.0]).unwrap();
+
+        let mut buf_used = 2;
+        let buf_len = buf.len();
+
+        Audio::try_fill_remaining(&mut rx, &mut buf, &mut buf_used, buf_len);
+
+        assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
+        assert_eq!(rx.next().unwrap(), [6.0, 7.0]);
+    }
+
+    #[test]
+    fn test_try_fill_remaining_multi_recv_remaining() {
+        let (mut buf, tx, rx) = get_setup();
+        let mut rx = rx.iter().peekable();
+
+        tx.send(vec![2.0, 3.0, 4.0]).unwrap();
+        tx.send(vec![5.0, 6.0, 7.0]).unwrap();
+
+        let mut buf_used = 2;
+        let buf_len = buf.len();
+
+        Audio::try_fill_remaining(&mut rx, &mut buf, &mut buf_used, buf_len);
+
+        assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
+        assert_eq!(rx.next().unwrap(), [6.0, 7.0]);
+    }
+
+    fn get_setup<'a>() -> (
+        [f32; 6],
+        crossbeam::channel::Sender<Vec<f32>>,
+        crossbeam::channel::Receiver<Vec<f32>>,
+    ) {
+        let buf = [0.0f32; 6];
+        let (tx, rx) = crossbeam::channel::unbounded::<Vec<f32>>();
+        (buf, tx, rx)
     }
 }
