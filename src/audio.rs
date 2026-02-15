@@ -16,6 +16,7 @@ pub mod config_filter;
 pub mod error;
 pub mod input;
 pub mod output;
+pub mod sample_format_conversion_impl;
 
 pub struct Audio {
     host: Host,
