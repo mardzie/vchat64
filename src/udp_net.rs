@@ -80,6 +80,8 @@ impl UdpNet {
         rx_write: Receiver<Packet>,
         exit: Arc<AtomicBool>,
     ) {
+        let mut counter: u64 = 0;
+
         loop {
             if exit.load(Ordering::Acquire) {
                 break;
@@ -113,6 +115,9 @@ impl UdpNet {
                     Err(e) => log::error!("Failed to write packet to {}: {}", addr, e),
                 };
             }
+
+            log::info!("UDP Writer: Packets sent: {}", counter);
+            counter += 1;
         }
 
         log::info!("UDP Writer: Stopped.");
@@ -129,6 +134,7 @@ impl UdpNet {
 
         let mut buf = [0u8; u16::MAX as usize];
         let mut last_packet_timestamp = chrono::DateTime::UNIX_EPOCH;
+        let mut counter = 0;
         loop {
             if exit.load(Ordering::Acquire) {
                 break;
@@ -221,7 +227,10 @@ impl UdpNet {
 
             let (_, payload) = packet.split();
             match tx_read.send((src_addr, payload)) {
-                Ok(_) => {}
+                Ok(_) => {
+                    log::info!("UDP Reader: Packets received: {}", counter);
+                    counter += 1;
+                }
                 Err(_) => {
                     log::error!(
                         "Received packet receiver has shut down: Shutting down UDP receiver and dropping received packets."
