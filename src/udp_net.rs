@@ -20,7 +20,7 @@ use packet::{HEADER_LEN, Header, Packet};
 /// The max payload size is 512 bytes.
 ///
 /// This is to maximize througput and minimize latency and bytes lost.
-pub const MAX_PAYLOAD_SIZE: usize = 512;
+pub const MAX_PAYLOAD_SIZE: usize = 512 - HEADER_LEN;
 pub const MAX_PACKAGE_AGE_SEC: i64 = 10;
 
 /// The UDP Socket handler.
