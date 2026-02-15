@@ -1,4 +1,4 @@
-use crate::traits::EndianessConversion;
+use crate::traits::InPlaceEndiannessConversion;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const VERSION_MAJOR: &str = env!("CARGO_PKG_VERSION_MAJOR");
@@ -30,28 +30,28 @@ pub fn calculate_version() -> u32 {
     major * 10_u32.pow(places) + minor
 }
 
-impl EndianessConversion for Vec<u8> {
-    fn to_be_bytes(&mut self) {
+impl InPlaceEndiannessConversion for Vec<u8> {
+    fn to_be(&mut self) {
         for v in self.iter_mut() {
             *v = v.to_be();
         }
     }
 
-    fn to_le_bytes(&mut self) {
+    fn to_le(&mut self) {
         for v in self.iter_mut() {
             *v = v.to_le();
         }
     }
 }
 
-impl EndianessConversion for [u8; 4] {
-    fn to_be_bytes(&mut self) {
+impl InPlaceEndiannessConversion for [u8; 4] {
+    fn to_be(&mut self) {
         for v in self.iter_mut() {
             *v = v.to_be();
         }
     }
 
-    fn to_le_bytes(&mut self) {
+    fn to_le(&mut self) {
         for v in self.iter_mut() {
             *v = v.to_le();
         }

@@ -13,7 +13,7 @@ pub trait SampleFormatConversion<T> {
     ) -> std::iter::Map<std::vec::IntoIter<T>, impl FnMut(T) -> T>;
 }
 
-pub trait EndiannessConversionDynamic {
+pub trait InPlaceEndiannessConversion {
     fn to_be(&mut self);
 
     fn to_le(&mut self);

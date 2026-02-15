@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use sha2::Digest;
 
-use crate::traits::EndianessConversion;
+use crate::traits::InPlaceEndiannessConversion;
 
 #[derive(Debug)]
 pub struct Sha256;
@@ -16,7 +16,7 @@ impl Sha256 {
     pub fn checksum(data: &[u8]) -> [u8; 4] {
         let mut checksum = [0u8; 4];
         checksum.copy_from_slice(&Self::digest(data)[..4]);
-        checksum.to_be_bytes();
+        checksum.to_be();
 
         checksum
     }
