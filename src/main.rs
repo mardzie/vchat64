@@ -18,6 +18,7 @@ fn main() -> Result<()> {
     let file = std::fs::File::create("./log.log").unwrap();
     env_logger::builder()
         .default_format()
+        .filter_level(log::LevelFilter::Trace)
         .target(env_logger::Target::Pipe(Box::new(file)))
         .init();
 
