@@ -210,6 +210,7 @@ impl UdpNet {
                 };
             let packet_timestamp = packet.header().timestamp();
             if packet_timestamp > now {
+                // TODO: Rejects too many packets if just a bit in the future.
                 log::warn!("Invalid packet timestamp: Packet is from the future. Dropping packet.");
                 continue;
             } else if packet_timestamp < max_age_timestamp {
@@ -228,7 +229,7 @@ impl UdpNet {
             let (_, payload) = packet.split();
             match tx_read.send((src_addr, payload)) {
                 Ok(_) => {
-                    log::info!("UDP Reader: Packets received: {}", counter);
+                    log::trace!("UDP Reader: Packets received: {}", counter);
                     counter += 1;
                 }
                 Err(_) => {
