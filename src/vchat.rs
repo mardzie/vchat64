@@ -13,6 +13,7 @@ use color_eyre::eyre::Result;
 use crate::{
     TIMEOUT,
     audio::Audio,
+    traits::SampleFormatConversion,
     udp_net::{MAX_PAYLOAD_SIZE, UdpNet, packet::Packet},
 };
 
@@ -33,17 +34,20 @@ impl VChat {
         let (speaker_input_tx, speaker_output_rx) = crossbeam::channel::unbounded();
 
         let exit_c = exit.clone();
+        let audio = Audio::new(mic_input_tx, speaker_output_rx, u8::MAX, 50, exit_c);
+
+        let exit_c = exit.clone();
         let (udp_net, udp_sender, udp_receiver) = UdpNet::new(addr, exit_c)?;
 
         let exit_c = exit.clone();
         let input_udp_bridge_handle =
             thread::spawn(move || Self::input_udp_bridge(mic_output_rx, udp_sender, exit_c));
 
-        let exit_c = exit.clone();
-        let udp_output_bridge_handle =
-            thread::spawn(move || Self::udp_output_bridge(udp_receiver, speaker_input_tx, exit_c));
+        let output_sample_format = audio.output_sample_format();
+        let udp_output_bridge_handle = thread::spawn(move || {
+            Self::udp_output_bridge(udp_receiver, speaker_input_tx, exit, output_sample_format)
+        });
 
-        let audio = Audio::new(mic_input_tx, speaker_output_rx, u8::MAX, 50, exit);
         audio.play();
 
         Ok(Self {
@@ -109,11 +113,14 @@ impl VChat {
         log::info!("Input UDP Bridge: Stopped.");
     }
 
-    fn udp_output_bridge(
+    fn udp_output_bridge<T>(
         udp_receiver: Receiver<(SocketAddr, Vec<u8>)>,
-        output_tx: crossbeam::channel::Sender<Vec<f32>>,
+        output_tx: crossbeam::channel::Sender<Vec<T>>,
         exit: Arc<AtomicBool>,
-    ) {
+        output_sample_format: cpal::SampleFormat,
+    ) where
+        T: SampleFormatConversion<f32>,
+    {
         const AUDIO_VALUE_BYTE_LEN: usize = 4;
 
         loop {
@@ -151,7 +158,9 @@ impl VChat {
                 .map(f32::from_be_bytes)
                 .collect();
 
-            match output_tx.send(data) {
+            let samples = T::from_sample_buf(data, Some(output_sample_format)).collect();
+
+            match output_tx.send(samples) {
                 Ok(_) => {}
                 Err(e) => {
                     log::warn!("UDP Output Bridge: Output device closed channel: {}", e);

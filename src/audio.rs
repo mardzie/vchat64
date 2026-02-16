@@ -7,15 +7,19 @@ use std::{
     },
 };
 
-use cpal::{Host, InputCallbackInfo, OutputCallbackInfo, default_host};
+use cpal::{Host, InputCallbackInfo, OutputCallbackInfo, SampleFormat, default_host};
 
-use crate::audio::{audio_processor::AudioProcessor, input::InputStream, output::OutputStream};
+use crate::{
+    audio::{audio_processor::AudioProcessor, input::InputStream, output::OutputStream},
+    traits::SampleFormatCenter,
+};
 
 pub mod audio_processor;
 pub mod config_filter;
 pub mod error;
 pub mod input;
 pub mod output;
+pub mod sample_format_center_impl;
 pub mod sample_format_conversion_impl;
 
 pub struct Audio {
@@ -37,6 +41,7 @@ impl Audio {
     pub fn new(
         input_channel: Sender<Vec<f32>>,
         output_channel: crossbeam::channel::Receiver<Vec<f32>>,
+
         init_volume: u8,
         init_cutoff: u8,
 
@@ -45,30 +50,44 @@ impl Audio {
         let host = default_host();
 
         let (input_tx_to_audio_processor, audio_processor_rx) = std::sync::mpsc::channel();
+        let mut input = InputStream::new(&host).expect("Failed to create new input object.");
+        input
+            .build_stream(
+                move |buf, info| Self::input_data_callback(buf, info, &input_tx_to_audio_processor),
+                move |e| log::error!("Input Stream Error: {}", e),
+            )
+            .expect("Failed to create new input stream.");
 
-        let input = InputStream::new(
-            &host,
-            move |buf, info| Self::input_data_callback(buf, info, &input_tx_to_audio_processor),
-            move |e| log::error!("Input Stream Error: {}", e),
-        )
-        .expect("Failed to create new input stream.");
-
-        let output = OutputStream::new(
-            &host,
-            move |buf, info| {
-                Self::output_data_callback(buf, info, &mut output_channel.try_iter().peekable())
-            },
-            move |e| log::error!("Output Stream Error: {}", e),
-        )
-        .expect("Failed to create new output stream.");
+        let mut output = OutputStream::new(&host).expect("Failed to create new output object.");
+        let output_sample_format = output.sample_format();
+        output
+            .build_stream(
+                move |buf, info| {
+                    Self::output_data_callback(
+                        buf,
+                        info,
+                        &mut output_channel.try_iter().peekable(),
+                        output_sample_format,
+                    )
+                },
+                move |e| log::error!("Output Stream Error: {}", e),
+            )
+            .expect("Failed to create new output stream.");
 
         let volume = Arc::new(atomic::AtomicU8::new(init_volume));
         let cutoff = Arc::new(atomic::AtomicU8::new(init_cutoff));
 
         let volume_c = volume.clone();
         let cutoff_c = cutoff.clone();
-        let audio_processor =
-            AudioProcessor::new(audio_processor_rx, input_channel, volume_c, cutoff_c, exit);
+        let input_sample_format = input.sample_format();
+        let audio_processor = AudioProcessor::new(
+            audio_processor_rx,
+            input_channel,
+            volume_c,
+            cutoff_c,
+            exit,
+            input_sample_format,
+        );
 
         Self {
             input,
@@ -82,11 +101,10 @@ impl Audio {
     }
 
     #[inline]
-    fn input_data_callback(
-        buf: &[f32],
-        info: &InputCallbackInfo,
-        input_channel: &Sender<Vec<f32>>,
-    ) {
+    fn input_data_callback<T>(buf: &[T], info: &InputCallbackInfo, input_channel: &Sender<Vec<T>>)
+    where
+        T: Copy,
+    {
         match input_channel.send(buf.to_vec()) {
             Ok(_) => {}
             Err(e) => {
@@ -104,11 +122,14 @@ impl Audio {
     }
 
     #[inline]
-    fn output_data_callback(
-        buf: &mut [f32],
+    fn output_data_callback<T>(
+        buf: &mut [T],
         info: &OutputCallbackInfo,
-        output_channel: &mut Peekable<crossbeam::channel::TryIter<Vec<f32>>>,
-    ) {
+        output_channel: &mut Peekable<crossbeam::channel::TryIter<Vec<T>>>,
+        sample_format: SampleFormat,
+    ) where
+        T: Copy + SampleFormatCenter,
+    {
         let sample = match output_channel.next() {
             Some(sample) => sample,
             None => {
@@ -125,16 +146,18 @@ impl Audio {
 
         Self::try_fill_remaining(output_channel, buf, &mut buf_used, buf_len);
 
-        buf[buf_used..buf_len].fill(0.0);
+        buf[buf_used..buf_len].fill(T::center_point(Some(sample_format)));
     }
 
     /// Tries to fill remaining `buf` space from `output_channel`.
-    fn try_fill_remaining(
-        output_channel: &mut Peekable<crossbeam::channel::TryIter<Vec<f32>>>,
-        buf: &mut [f32],
+    fn try_fill_remaining<T>(
+        output_channel: &mut Peekable<crossbeam::channel::TryIter<Vec<T>>>,
+        buf: &mut [T],
         buf_used: &mut usize,
         buf_len: usize,
-    ) {
+    ) where
+        T: Copy,
+    {
         while *buf_used < buf_len
             && let Some(sample) = output_channel.peek_mut()
         {
@@ -142,7 +165,7 @@ impl Audio {
             let sample_len = sample.len();
 
             if sample_len > buf_space {
-                let extracted: Vec<f32> = sample.drain(..buf_space).collect();
+                let extracted: Vec<T> = sample.drain(..buf_space).collect();
                 buf[*buf_used..buf_len].copy_from_slice(&extracted);
                 *buf_used = buf_len;
                 log::trace!(
@@ -166,34 +189,36 @@ impl Audio {
         }
     }
 
-    #[inline]
+    pub fn input_sample_format(&self) -> cpal::SampleFormat {
+        self.input.sample_format()
+    }
+
+    pub fn output_sample_format(&self) -> cpal::SampleFormat {
+        self.output.sample_format()
+    }
+
     pub fn play(&self) {
         self.play_input();
         self.play_output();
     }
 
-    #[inline]
     pub fn play_input(&self) {
         self.input.play().expect("Failed to play input stream.");
     }
 
-    #[inline]
     pub fn play_output(&self) {
         self.output.play().expect("Failed to play output stream.");
     }
 
-    #[inline]
     pub fn pause(&self) {
         self.pause_input();
         self.pause_output();
     }
 
-    #[inline]
     pub fn pause_input(&self) {
         self.input.pause().expect("Failed to pause input stream.");
     }
 
-    #[inline]
     pub fn pause_output(&self) {
         self.output.pause().expect("Failed to pause output stream.");
     }

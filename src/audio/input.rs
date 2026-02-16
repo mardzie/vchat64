@@ -1,6 +1,5 @@
 use cpal::{
     Device, Host, PauseStreamError, PlayStreamError, Stream, SupportedStreamConfig,
-    SupportedStreamConfigsError,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 
@@ -12,16 +11,11 @@ use crate::audio::{
 pub struct InputStream {
     device: Device,
     config: SupportedStreamConfig,
-    stream: Stream,
+    stream: Option<Stream>,
 }
 
 impl InputStream {
-    pub fn new<T, D, E>(host: &Host, data_callback: D, error_callback: E) -> Result<Self, Error>
-    where
-        T: cpal::SizedSample,
-        D: FnMut(&[T], &cpal::InputCallbackInfo) + Send + 'static,
-        E: FnMut(cpal::StreamError) + Send + 'static,
-    {
+    pub fn new(host: &Host) -> Result<Self, Error> {
         let device = host
             .default_input_device()
             .ok_or(Error::DefaultDeviceNotAvailable(DeviceType::Input))?;
@@ -29,43 +23,81 @@ impl InputStream {
         let supported_configs = match device.supported_input_configs() {
             Ok(supported_config) => supported_config,
             Err(e) => {
-                return Err(match e {
-                    SupportedStreamConfigsError::DeviceNotAvailable => {
-                        Error::DeviceNotAvailable(DeviceType::Input)
-                    }
-                    SupportedStreamConfigsError::InvalidArgument => {
-                        Error::InvalidArgument(DeviceType::Input)
-                    }
-                    SupportedStreamConfigsError::BackendSpecific { err } => {
-                        Error::BackendSpecific(DeviceType::Input, err)
-                    }
-                });
+                return Err(Error::from_supported_stream_configs_error(
+                    DeviceType::Input,
+                    e,
+                ));
             }
         };
 
-        let config = ConfigFilter::from_supported_input_config(supported_configs)
-            .filter_channel_count(2)
+        let config = match ConfigFilter::from_supported_input_config(supported_configs)
             .filter_sample_format(cpal::SampleFormat::F32)
-            .pop()
-            .expect("Failed to find acceptable input stream config.")
-            .with_max_sample_rate();
-
-        let stream = device
-            .build_input_stream(&config.config(), data_callback, error_callback, None)
-            .map_err(|e| Error::BuildStream(DeviceType::Input, e))?;
+            .filter_channel_count_ge(1)
+            .get_config_smallest_channel_count()
+        {
+            Some(config) => config.with_max_sample_rate(),
+            None => match device.default_input_config() {
+                Ok(default_config) => default_config,
+                Err(e) => {
+                    return Err(Error::from_default_stream_config_error(
+                        DeviceType::Input,
+                        e,
+                    ));
+                }
+            },
+        };
 
         Ok(Self {
             device,
             config,
-            stream,
+            stream: None,
         })
     }
 
+    pub fn build_stream<T, D, E>(
+        &mut self,
+        data_callback: D,
+        error_callback: E,
+    ) -> Result<(), Error>
+    where
+        T: cpal::SizedSample,
+        D: FnMut(&[T], &cpal::InputCallbackInfo) + Send + 'static,
+        E: FnMut(cpal::StreamError) + Send + 'static,
+    {
+        self.stream = Some(
+            match self.device.build_input_stream(
+                &self.config.config(),
+                data_callback,
+                error_callback,
+                None,
+            ) {
+                Ok(stream) => stream,
+                Err(e) => {
+                    return Err(Error::BuildStream(DeviceType::Input, e));
+                }
+            },
+        );
+
+        Ok(())
+    }
+
     pub fn play(&self) -> Result<(), PlayStreamError> {
-        self.stream.play()
+        if let Some(stream) = &self.stream {
+            stream.play()?;
+        };
+
+        Ok(())
     }
 
     pub fn pause(&self) -> Result<(), PauseStreamError> {
-        self.stream.pause()
+        if let Some(stream) = &self.stream {
+            stream.pause()?;
+        };
+
+        Ok(())
+    }
+
+    pub fn sample_format(&self) -> cpal::SampleFormat {
+        self.config.sample_format()
     }
 }

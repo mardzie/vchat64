@@ -30,6 +30,11 @@ pub trait SampleFormatConversion<T> {
         Self: Sized;
 }
 
+pub trait SampleFormatCenter {
+    /// Returns the center point of this sample type.
+    fn center_point(sample_format: Option<cpal::SampleFormat>) -> Self;
+}
+
 pub trait InPlaceEndiannessConversion {
     fn to_be(&mut self);
 

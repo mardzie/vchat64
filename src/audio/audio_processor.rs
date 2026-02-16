@@ -7,6 +7,8 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use crate::traits::SampleFormatConversion;
+
 #[derive(Debug)]
 pub struct AudioProcessor {
     process_audio_handle: JoinHandle<()>,
@@ -20,9 +22,17 @@ impl AudioProcessor {
         cutoff: Arc<atomic::AtomicU8>,
 
         exit: Arc<AtomicBool>,
+        input_sample_format: cpal::SampleFormat,
     ) -> Self {
         let process_audio_handle = thread::spawn(move || {
-            Self::process_audio(input_channel, output_channel.clone(), volume, cutoff, exit)
+            Self::process_audio(
+                input_channel,
+                output_channel.clone(),
+                volume,
+                cutoff,
+                exit,
+                input_sample_format,
+            )
         });
 
         Self {
@@ -30,21 +40,24 @@ impl AudioProcessor {
         }
     }
 
-    fn process_audio(
-        input_channel: Receiver<Vec<f32>>,
+    fn process_audio<T>(
+        input_channel: Receiver<Vec<T>>,
         output_channel: Sender<Vec<f32>>,
         volume: Arc<atomic::AtomicU8>,
         cutoff: Arc<atomic::AtomicU8>,
 
         exit: Arc<AtomicBool>,
-    ) {
+        input_sample_format: cpal::SampleFormat,
+    ) where
+        T: SampleFormatConversion<f32>,
+    {
         loop {
             if exit.load(atomic::Ordering::Acquire) {
                 break;
             };
 
-            let buf = match input_channel.try_recv() {
-                Ok(buf) => buf,
+            let buf: Vec<f32> = match input_channel.try_recv() {
+                Ok(buf) => T::to_sample_buf(buf, Some(input_sample_format)).collect(),
                 Err(e) => {
                     if let TryRecvError::Empty = e {
                         thread::yield_now();

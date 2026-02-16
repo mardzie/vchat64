@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 use cpal::{ChannelCount, SupportedStreamConfigRange};
 pub use cpal::{SampleFormat, SupportedInputConfigs, SupportedOutputConfigs};
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ConfigFilter {
     config: Vec<SupportedStreamConfigRange>,
 }
@@ -33,7 +33,7 @@ impl ConfigFilter {
     }
 
     /// Filter for only Configs with a channel count equals to `channel_count`.
-    pub fn filter_channel_count(self, channel_count: ChannelCount) -> Self {
+    pub fn filter_channel_count_eq(self, channel_count: ChannelCount) -> Self {
         let filtered = self
             .config
             .into_iter()
@@ -41,6 +41,36 @@ impl ConfigFilter {
             .collect();
 
         Self { config: filtered }
+    }
+
+    pub fn filter_channel_count_ge(self, channel_count: ChannelCount) -> Self {
+        let filetered = self
+            .config
+            .into_iter()
+            .filter(|x| x.channels() > channel_count)
+            .collect();
+
+        Self { config: filetered }
+    }
+
+    pub fn filter_channel_count_le(self, channel_count: ChannelCount) -> Self {
+        let filtered = self
+            .config
+            .into_iter()
+            .filter(|x| x.channels() < channel_count)
+            .collect();
+
+        Self { config: filtered }
+    }
+
+    pub fn get_config_smallest_channel_count(self) -> Option<SupportedStreamConfigRange> {
+        self.config.into_iter().reduce(|x, acc| {
+            if x.channels() < acc.channels() {
+                x
+            } else {
+                acc
+            }
+        })
     }
 
     pub fn pop(&mut self) -> Option<SupportedStreamConfigRange> {
