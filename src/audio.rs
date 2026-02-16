@@ -51,6 +51,7 @@ impl Audio {
 
         let (input_tx_to_audio_processor, audio_processor_rx) = std::sync::mpsc::channel();
         let mut input = InputStream::new(&host).expect("Failed to create new input object.");
+        log::info!("Input Stream: Using config: {:?}", input.config());
         input
             .build_stream(
                 move |buf, info| Self::input_data_callback(buf, info, &input_tx_to_audio_processor),
@@ -59,6 +60,7 @@ impl Audio {
             .expect("Failed to create new input stream.");
 
         let mut output = OutputStream::new(&host).expect("Failed to create new output object.");
+        log::info!("Output Stream: Using config: {:?}", output.config());
         let output_sample_format = output.sample_format();
         output
             .build_stream(

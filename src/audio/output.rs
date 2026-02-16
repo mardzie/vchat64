@@ -46,6 +46,8 @@ impl OutputStream {
                 }
             },
         };
+        
+        log::info!("New OutputStream created.");
 
         Ok(Self {
             device,
@@ -92,5 +94,9 @@ impl OutputStream {
 
     pub fn sample_format(&self) -> cpal::SampleFormat {
         self.config.sample_format()
+    }
+
+    pub fn config(&self) -> &SupportedStreamConfig {
+        &self.config
     }
 }
