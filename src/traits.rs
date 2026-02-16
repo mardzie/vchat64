@@ -2,15 +2,32 @@ pub trait SampleFormatConversion<T> {
     /// Converts a sample `self` into `T`.
     ///
     /// If the sample is `U24` or `I24` you need to specify the `SampleFormat` else it will be interpreted as `U32` or `I32`.
-    fn convert_sample(self, sample_format: Option<cpal::SampleFormat>) -> T;
+    fn to_sample(self, sample_format: Option<cpal::SampleFormat>) -> T;
 
     /// Converts a sample list `buf` into an iterator with `T` contents.
     ///
     /// If the sample is `U24` or `I24` you need to specify the `sample_format` else it will be interpreted as `U32` or `I32`.
-    fn convert_buf(
+    fn to_sample_buf(
+        buf: Vec<Self>,
+        sample_format: Option<cpal::SampleFormat>,
+    ) -> std::iter::Map<std::vec::IntoIter<Self>, impl FnMut(Self) -> T>
+    where
+        Self: Sized;
+
+    /// Converts a sample `T` into `Self`.
+    ///
+    /// If the sample is `U24` or `I24` you need to specify the `SampleFormat` else it will be interpreted as `U32` or `I32`.
+    fn from_sample(sample: T, sample_format: Option<cpal::SampleFormat>) -> Self;
+
+    /// Converts a list `buf` into an iterator with `Self` contents.
+    ///
+    /// If the sample is `U24` or `I24` you need to specify the `sample_format` else it will be interpreted as `U32` or `I32`.
+    fn from_sample_buf(
         buf: Vec<T>,
         sample_format: Option<cpal::SampleFormat>,
-    ) -> std::iter::Map<std::vec::IntoIter<T>, impl FnMut(T) -> T>;
+    ) -> std::iter::Map<std::vec::IntoIter<T>, impl FnMut(T) -> Self>
+    where
+        Self: Sized;
 }
 
 pub trait InPlaceEndiannessConversion {
