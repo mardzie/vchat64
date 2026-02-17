@@ -2,5 +2,6 @@
 pub enum AppState {
     #[default]
     App,
+    CodeInput,
     Exit,
 }

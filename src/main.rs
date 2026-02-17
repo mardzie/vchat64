@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     disable_raw_mode()?;
     if let Err(e) = ratatui::try_restore() {
         eprintln!(
-            "failed to restore terminal. Run `reset` or restart your terminal to recover: {}",
+            "Failed to restore terminal. Run `reset` or restart your terminal to recover: {}",
             e
         );
     };
