@@ -1,5 +1,5 @@
 use color_eyre::Result;
-use crossterm::event::{Event, KeyCode, KeyEvent};
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{style::Stylize, text::Line, widgets::Widget};
 
 #[derive(Debug)]
@@ -65,39 +65,46 @@ impl LineTextArea {
     }
 
     fn handle_key_event(&mut self, key_event: &KeyEvent) -> Result<()> {
-        match key_event.code {
-            KeyCode::Char(ch) => {
-                self.buf.insert(self.pos, ch);
-                self.pos += 1;
-            }
-            KeyCode::Backspace => {
-                if 0 < self.pos {
-                    let _ = self.buf.remove(self.pos - 1);
-                    self.pos -= 1;
-                };
-            }
-            KeyCode::Delete => {
-                if self.pos < self.buf.len() {
-                    let _ = self.buf.remove(self.pos);
-                };
-            }
-            KeyCode::Left => {
-                if self.pos > 0 {
-                    self.pos -= 1;
-                };
-            }
-            KeyCode::Right => {
-                if self.pos < self.buf.len() {
+        if key_event.kind != KeyEventKind::Press {
+            return Ok(());
+        };
+
+        match key_event.kind {
+            KeyEventKind::Press => match key_event.code {
+                KeyCode::Char(ch) => {
+                    self.buf.insert(self.pos, ch);
                     self.pos += 1;
-                };
-            }
-            KeyCode::Up | KeyCode::PageUp | KeyCode::Home => {
-                self.pos = 0;
-            }
-            KeyCode::Down | KeyCode::PageDown | KeyCode::End => {
-                self.pos = self.buf.len();
-            }
-            KeyCode::Esc => self.deselect(),
+                }
+                KeyCode::Backspace => {
+                    if 0 < self.pos {
+                        let _ = self.buf.remove(self.pos - 1);
+                        self.pos -= 1;
+                    };
+                }
+                KeyCode::Delete => {
+                    if self.pos < self.buf.len() {
+                        let _ = self.buf.remove(self.pos);
+                    };
+                }
+                KeyCode::Left => {
+                    if self.pos > 0 {
+                        self.pos -= 1;
+                    };
+                }
+                KeyCode::Right => {
+                    if self.pos < self.buf.len() {
+                        self.pos += 1;
+                    };
+                }
+                KeyCode::Up | KeyCode::PageUp | KeyCode::Home => {
+                    self.pos = 0;
+                }
+                KeyCode::Down | KeyCode::PageDown | KeyCode::End => {
+                    self.pos = self.buf.len();
+                }
+                KeyCode::Esc => self.deselect(),
+                _ => {}
+            },
             _ => {}
         }
 
