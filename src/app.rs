@@ -199,10 +199,19 @@ impl App {
 
         addr_bytes.extend_from_slice(&addr.port().to_be_bytes());
 
-        hex::encode(addr_bytes)
+        let hex = hex::encode(addr_bytes);
+        hex.chars()
+            .collect::<Vec<char>>()
+            .chunks(2)
+            .map(|chunk| chunk.iter().collect::<String>())
+            .collect::<Vec<String>>()
+            .join(" ")
     }
 
-    fn friend_code_to_ip(&mut self, friend_code: String) -> Result<SocketAddr, ()> {
+    fn friend_code_to_ip(&mut self, mut friend_code: String) -> Result<SocketAddr, ()> {
+        friend_code = friend_code.trim().to_string();
+        friend_code = friend_code.replace(" ", "");
+
         let bytes = match hex::decode(friend_code) {
             Ok(bytes) => bytes,
             Err(e) => {
