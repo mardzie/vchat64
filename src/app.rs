@@ -43,6 +43,8 @@ pub struct App {
     vchat: VChat,
 
     event_handle: JoinHandle<()>,
+
+    runtime: tokio::runtime::Runtime,
 }
 
 impl App {
@@ -64,6 +66,12 @@ impl App {
                 .unwrap_or(22000),
         );
 
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .expect("Failed to build tokio runtime!");
+
         Self {
             exit: exit.clone(),
             error_msg: (String::new(), chrono::DateTime::<chrono::Utc>::MAX_UTC),
@@ -75,6 +83,8 @@ impl App {
             vchat: VChat::new("0.0.0.0:22000", exit).unwrap(),
 
             event_handle: handle,
+
+            runtime,
         }
     }
 
@@ -144,22 +154,6 @@ impl App {
         };
     }
 
-    fn try_add_addr(&mut self, s: &str) -> Result<()> {
-        let addrs = match s.to_socket_addrs() {
-            Ok(addrs) => addrs,
-            Err(e) => {
-                log::warn!("Invalid address supplied: {}", e);
-                return Err(color_eyre::eyre::eyre!(e));
-            }
-        };
-
-        for addr in addrs {
-            self.vchat.add_address(addr);
-        }
-
-        Ok(())
-    }
-
     fn get_local_friend_code(&self) -> Result<String, String> {
         let ip = match local_ip_address::local_ip() {
             Ok(ip) => ip,
@@ -173,7 +167,10 @@ impl App {
     }
 
     fn get_public_friend_code(&self) -> Result<String, String> {
-        let ip = match futures::executor::block_on(public_ip_address::perform_lookup(None)) {
+        let ip = match self
+            .runtime
+            .block_on(public_ip_address::perform_lookup(None))
+        {
             Ok(lookup) => lookup.ip,
             Err(_) => {
                 log::warn!("Failed to perform public ip lookup.");
@@ -265,8 +262,8 @@ impl App {
                         && key_event.code == KeyCode::Enter
                     {
                         let buf = self.addr_input.get_buf().to_string();
-                        if let Err(e) = self.try_add_addr(&buf) {
-                            self.set_error(e.to_string());
+                        if let Ok(addr) = self.friend_code_to_ip(buf) {
+                            self.vchat.add_address(addr);
                         };
 
                         self.to_app_state();
@@ -360,14 +357,13 @@ impl App {
         block.render(area, buf);
 
         let layout = Layout::vertical([
-            Constraint::Length(3),
+            Constraint::Length(5),
             Constraint::Length(1),
             Constraint::Min(1),
         ]);
         let [my_friend_code_area, line_area, actions_area] = layout.areas(block_area);
 
-        let text = Line::from("My friend code").centered().red();
-        text.render(my_friend_code_area, buf);
+        self.render_friend_codes(my_friend_code_area, buf);
 
         let line_block = Block::bordered()
             .border_type(BorderType::Plain)
@@ -379,12 +375,53 @@ impl App {
             Constraint::Fill(1),
             Constraint::Length(2),
         ]);
-        let [input_friend_code_area, action_area_area, error_area] =
-            action_area_layout.areas(actions_area);
+        let [input_friend_code_area, _, error_area] = action_area_layout.areas(actions_area);
 
         self.render_text_area(input_friend_code_area, buf);
 
         self.render_error_area(error_area, buf);
+    }
+
+    fn render_friend_codes(
+        &self,
+        area: ratatui::prelude::Rect,
+        buf: &mut ratatui::prelude::Buffer,
+    ) {
+        let layout = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ]);
+        let [
+            public_header_area,
+            public_code_area,
+            _,
+            local_header_area,
+            local_code_area,
+        ] = layout.areas(area);
+
+        let title = Line::from(" Public Friend Code ").bold().yellow();
+        let block = Block::new().borders(Borders::TOP).title(title);
+        block.render(public_header_area, buf);
+
+        let public_friend_code =
+            Line::from(self.get_public_friend_code().map_or_else(|x| x, |y| y))
+                .bold()
+                .red()
+                .centered();
+        public_friend_code.render(public_code_area, buf);
+
+        let title = Line::from(" Local Friend Code ").bold().yellow();
+        let block = Block::new().borders(Borders::TOP).title(title);
+        block.render(local_header_area, buf);
+
+        let local_friend_code = Line::from(self.get_local_friend_code().map_or_else(|x| x, |y| y))
+            .bold()
+            .red()
+            .centered();
+        local_friend_code.render(local_code_area, buf);
     }
 
     fn render_text_area(&self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
