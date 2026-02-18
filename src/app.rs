@@ -273,6 +273,7 @@ impl App {
                         let buf = self.addr_input.get_buf().to_string();
                         if let Ok(addr) = self.friend_code_to_ip(buf) {
                             self.vchat.add_address(addr);
+                            self.addr_input.clear();
                         };
 
                         self.to_app_state();

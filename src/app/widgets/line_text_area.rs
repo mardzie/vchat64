@@ -55,6 +55,10 @@ impl LineTextArea {
         self.selected = false;
     }
 
+    pub fn clear(&mut self) {
+        self.buf.clear();
+    }
+
     pub fn handle_event(&mut self, event: &Event) -> Result<()> {
         match event {
             Event::Key(key_event) => self.handle_key_event(key_event)?,
