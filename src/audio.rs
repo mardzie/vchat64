@@ -141,18 +141,18 @@ impl Audio {
         };
 
         log::trace!("Output Data Callback: Got sample {} bytes", sample.len());
-
+        
         let buf_len = buf.len();
-        let mut buf_used = sample.len().min(buf_len);
-        buf[..buf_used].copy_from_slice(&sample[..buf_used]);
+        let mut buf_used = 0;
 
-        Self::try_fill_remaining(output_channel, buf, &mut buf_used, buf_len);
+        Self::try_fill_buf(output_channel, buf, &mut buf_used, buf_len);
 
+        // Fill remaining with silence.
         buf[buf_used..buf_len].fill(T::center_point(Some(sample_format)));
     }
 
     /// Tries to fill remaining `buf` space from `output_channel`.
-    fn try_fill_remaining<T>(
+    fn try_fill_buf<T>(
         output_channel: &mut Peekable<crossbeam::channel::TryIter<Vec<T>>>,
         buf: &mut [T],
         buf_used: &mut usize,
@@ -244,7 +244,7 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::try_fill_remaining(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::try_fill_buf(&mut rx, &mut buf, &mut buf_used, buf_len);
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
     }
@@ -260,7 +260,7 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::try_fill_remaining(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::try_fill_buf(&mut rx, &mut buf, &mut buf_used, buf_len);
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
     }
@@ -275,7 +275,7 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::try_fill_remaining(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::try_fill_buf(&mut rx, &mut buf, &mut buf_used, buf_len);
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
         assert_eq!(rx.next().unwrap(), [6.0, 7.0]);
@@ -292,7 +292,7 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::try_fill_remaining(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::try_fill_buf(&mut rx, &mut buf, &mut buf_used, buf_len);
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
         assert_eq!(rx.next().unwrap(), [6.0, 7.0]);
