@@ -1,6 +1,5 @@
 use std::{
-    net::{SocketAddr, ToSocketAddrs},
-    str::FromStr,
+    net::SocketAddr,
     sync::{
         self, Arc,
         atomic::{self, AtomicBool, Ordering},
