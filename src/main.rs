@@ -8,6 +8,7 @@ mod state;
 mod traits;
 mod udp_net;
 mod vchat;
+mod voice_net;
 
 use crate::app::App;
 use ratatui::crossterm::terminal::{disable_raw_mode, enable_raw_mode};
