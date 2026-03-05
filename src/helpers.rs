@@ -11,7 +11,8 @@ pub const VERSION_PATCH: &str = env!("CARGO_PKG_VERSION_PATCH");
 /// | ----- | ----- |
 /// | 3     | 20    |
 ///
-/// -> 321
+/// -> 320
+#[inline(always)]
 pub fn calculate_version() -> u32 {
     let major: u32 = VERSION_MAJOR.parse().unwrap_or_else(|_| {
         panic!(
