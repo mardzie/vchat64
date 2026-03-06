@@ -6,7 +6,7 @@ mod hash;
 mod helpers;
 mod state;
 mod traits;
-mod udp_net;
+mod udp_packet_net;
 mod vchat;
 mod voice_net;
 

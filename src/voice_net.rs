@@ -1,9 +1,13 @@
 use std::{
+    collections::{self, BTreeMap, BTreeSet, BinaryHeap, VecDeque},
     net::ToSocketAddrs,
     sync::{Arc, atomic::AtomicBool},
 };
 
-use crate::udp_net::UdpPacketNet;
+use crate::{
+    helpers::calculate_version,
+    udp_packet_net::{self, UdpPacketNet},
+};
 
 mod error;
 
@@ -11,6 +15,8 @@ mod error;
 pub struct VoiceNet {
     packet_net: UdpPacketNet,
     exit: Arc<AtomicBool>,
+
+    incoming_packet_buf: VecDeque<Vec<u8>>,
 }
 
 impl VoiceNet {
@@ -19,48 +25,45 @@ impl VoiceNet {
         A: ToSocketAddrs,
     {
         let packet_net = UdpPacketNet::new(addr)?;
-        Ok(Self { packet_net, exit })
+
+        Ok(Self {
+            packet_net,
+            exit,
+            incoming_packet_buf: VecDeque::with_capacity(1024),
+        })
     }
 
-    pub fn write(&self) {}
+    pub fn send(&self) {}
 
-    pub fn read(&self) {
+    pub fn recv(&mut self) {
+        let version = calculate_version();
+
+        let (packet, src_addr) = match self.packet_net.recv() {
+            Ok(packet) => packet,
+            Err(e) => match e {
+                udp_packet_net::error::Error::Recv(e) => {
+                    log::warn!("Failed to receive packet from UDP Packet Net: {}", e);
+                    return;
+                }
+                udp_packet_net::error::Error::ChecksumMismatch => {
+                    log::warn!("UDP Packet Checksum Mismatch.");
+                    return;
+                }
+                _ => {
+                    panic!(
+                        "Invalid Error Variant returned! in `voice_net.rs` in `VoiceNet::recv()`"
+                    );
+                }
+            },
+        };
+
         // Version
-        if packet.header().version() != packet_version {
+        if packet.header().version() != version {
             log::warn!("Version mismatch: Dropping packet.");
-            continue;
+            return;
         };
 
         // Timestamp
-        let now = chrono::Utc::now();
-        let max_age_timestamp =
-            match now.checked_sub_signed(chrono::TimeDelta::seconds(MAX_PACKAGE_AGE_SEC)) {
-                Some(max_age_timestamp) => max_age_timestamp,
-                None => {
-                    log::error!(
-                        "Failed to subtract {} s from {}: Dropping packet.",
-                        MAX_PACKAGE_AGE_SEC,
-                        now
-                    );
-                    continue;
-                }
-            };
-        let packet_timestamp = packet.header().timestamp();
-        if packet_timestamp > now {
-            // TODO: Rejects too many packets if just a bit in the future.
-            log::warn!("Invalid packet timestamp: Packet is from the future. Dropping packet.");
-            continue;
-        } else if packet_timestamp < max_age_timestamp {
-            log::warn!("Invalid packet timestamp: Packet is too old. Dropping packet.");
-            continue;
-        } else if packet_timestamp < last_packet_timestamp {
-            log::warn!(
-                "Invalid packet timestamp: Packet is older than the most recent packet. Dropping packet."
-            );
-            continue;
-        };
-        last_packet_timestamp = packet_timestamp;
-
-        log::trace!("UDP Reader: Received valid message.");
+        todo!();
     }
 }

@@ -39,7 +39,7 @@ impl UdpPacketNet {
     }
 
     /// Sends the `packet` to the given address.
-    fn send<A>(&self, packet: Packet, addr: A) -> Result<usize, error::Error>
+    pub fn send<A>(&self, packet: Packet, addr: A) -> Result<usize, error::Error>
     where
         A: ToSocketAddrs,
     {
@@ -49,7 +49,7 @@ impl UdpPacketNet {
     }
 
     /// Reads a [`Packet`] from stream and returns the `Packet` and the source `SocketAddr`.
-    fn recv(&mut self) -> Result<(Packet, SocketAddr), error::Error> {
+    pub fn recv(&mut self) -> Result<(Packet, SocketAddr), error::Error> {
         let (len, addr) = self
             .socket
             .recv_from(&mut self.recv_buf)

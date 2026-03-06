@@ -14,7 +14,7 @@ use crate::{
     TIMEOUT,
     audio::Audio,
     traits::SampleFormatConversion,
-    udp_net::{MAX_PAYLOAD_SIZE, UdpPacketNet, packet::Packet},
+    udp_packet_net::{MAX_PAYLOAD_SIZE, UdpPacketNet, packet::Packet},
 };
 
 pub struct VChat {

@@ -158,7 +158,7 @@ impl From<[u8; HEADER_LEN]> for Header {
 
 #[cfg(test)]
 mod packet_test {
-    use crate::udp_net::packet::{HEADER_LEN, Header, Packet};
+    use crate::udp_packet_net::packet::{HEADER_LEN, Header, Packet};
 
     const PAYLOAD: [u8; 6] = [25, 40, 90, 120, 30, 0];
 
