@@ -1,17 +1,4 @@
-//! This module handles all the in- and outgoing UDP traffic.
-
-use std::{
-    io,
-    net::{SocketAddr, ToSocketAddrs, UdpSocket},
-    sync::{
-        Arc, RwLock,
-        atomic::{AtomicBool, Ordering},
-        mpsc::{Receiver, TryRecvError},
-    },
-    thread,
-};
-
-use crate::helpers::calculate_version;
+use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 
 pub mod error;
 pub mod packet;
@@ -29,35 +16,57 @@ pub const MAX_PACKAGE_AGE_SEC: i64 = 10;
 ///
 /// There must never exists two identical `SocketAddr` in `addresses`!
 #[derive(Debug)]
-pub struct UdpNet {
+pub struct UdpPacketNet {
     socket: UdpSocket,
+
+    recv_buf: [u8; u16::MAX as usize],
 }
 
-impl UdpNet {
+impl UdpPacketNet {
     pub fn new<A>(addr: A) -> Result<Self, error::Error>
     where
         A: ToSocketAddrs,
     {
-        let socket = UdpSocket::bind(addr)?;
+        let socket = UdpSocket::bind(addr).map_err(|e| error::Error::SocketBind(e))?;
         socket
             .set_nonblocking(true)
             .expect("Failed to put socket into blocking mode!");
 
-        Ok(UdpNet { socket })
+        Ok(UdpPacketNet {
+            socket,
+            recv_buf: [0u8; u16::MAX as usize],
+        })
     }
 
-    /// Sends `bytes` to the given addr.
-    fn send_to<A>(&self, bytes: &[u8], addr: A) -> Result<usize, io::Error>
+    /// Sends the `packet` to the given address.
+    fn send<A>(&self, packet: Packet, addr: A) -> Result<usize, error::Error>
     where
         A: ToSocketAddrs,
     {
-        self.socket.send_to(bytes, addr)
+        self.socket
+            .send_to(&packet.into_bytes(), addr)
+            .map_err(|e| error::Error::Send(e))
     }
 
-    /// Reads a packet from stream and stores it in `buf` and returns the number of bytes read and the source `SocketAddr`.
-    ///
-    /// Buf should have at least [`MAX_PACKET_SIZE`] bytes capacity.
-    fn recv(&self, buf: &mut [u8]) -> Result<(usize, SocketAddr), io::Error> {
-        self.socket.recv_from(buf)
+    /// Reads a [`Packet`] from stream and returns the `Packet` and the source `SocketAddr`.
+    fn recv(&mut self) -> Result<(Packet, SocketAddr), error::Error> {
+        let (len, addr) = self
+            .socket
+            .recv_from(&mut self.recv_buf)
+            .map_err(|e| error::Error::Recv(e))?;
+
+        // Header
+        let mut header_bytes = [0u8; HEADER_LEN];
+        header_bytes.copy_from_slice(&self.recv_buf[..HEADER_LEN]);
+        let header = Header::from(header_bytes);
+
+        // Header and Payload to bytes and checksum verification.
+        let payload_bytes = self.recv_buf[HEADER_LEN..len].to_vec();
+        let packet = match Packet::new(header, payload_bytes) {
+            Ok(packet) => packet,
+            Err(_) => return Err(error::Error::ChecksumMismatch),
+        };
+
+        Ok((packet, addr))
     }
 }

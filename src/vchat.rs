@@ -14,12 +14,12 @@ use crate::{
     TIMEOUT,
     audio::Audio,
     traits::SampleFormatConversion,
-    udp_net::{MAX_PAYLOAD_SIZE, UdpNet, packet::Packet},
+    udp_net::{MAX_PAYLOAD_SIZE, UdpPacketNet, packet::Packet},
 };
 
 pub struct VChat {
     audio: Audio,
-    udp_net: UdpNet,
+    udp_net: UdpPacketNet,
 
     input_udp_bridge_handle: JoinHandle<()>,
     udp_output_bridge_handle: JoinHandle<()>,
@@ -37,7 +37,7 @@ impl VChat {
         let audio = Audio::new(mic_input_tx, speaker_output_rx, u8::MAX, 50, exit_c);
 
         let exit_c = exit.clone();
-        let (udp_net, udp_sender, udp_receiver) = UdpNet::new(addr, exit_c)?;
+        let (udp_net, udp_sender, udp_receiver) = UdpPacketNet::new(addr, exit_c)?;
 
         let exit_c = exit.clone();
         let input_udp_bridge_handle =
@@ -204,7 +204,7 @@ impl VChat {
     }
 
     #[inline]
-    pub fn udp_net(&self) -> &UdpNet {
+    pub fn udp_net(&self) -> &UdpPacketNet {
         &self.udp_net
     }
 

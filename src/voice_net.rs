@@ -1,13 +1,16 @@
 use std::{
-    net::{ToSocketAddrs, UdpSocket},
+    net::ToSocketAddrs,
     sync::{Arc, atomic::AtomicBool},
 };
+
+use crate::udp_net::UdpPacketNet;
 
 mod error;
 
 #[derive(Debug)]
 pub struct VoiceNet {
-    socket: UdpSocket,
+    packet_net: UdpPacketNet,
+    exit: Arc<AtomicBool>,
 }
 
 impl VoiceNet {
@@ -15,27 +18,13 @@ impl VoiceNet {
     where
         A: ToSocketAddrs,
     {
-        Ok(Self { udp_net })
+        let packet_net = UdpPacketNet::new(addr)?;
+        Ok(Self { packet_net, exit })
     }
 
     pub fn write(&self) {}
 
     pub fn read(&self) {
-        // Header
-        let mut header_bytes = [0u8; HEADER_LEN];
-        header_bytes.copy_from_slice(&buf[..HEADER_LEN]);
-        let header = Header::from(header_bytes);
-
-        // Header and Payload to bytes and checksum verification.
-        let payload_bytes = buf[HEADER_LEN..len].to_vec();
-        let packet = match Packet::new(header, payload_bytes) {
-            Ok(packet) => packet,
-            Err(e) => {
-                log::warn!("Corrupted packet: {}. Dropping packet.", e);
-                continue;
-            }
-        };
-
         // Version
         if packet.header().version() != packet_version {
             log::warn!("Version mismatch: Dropping packet.");
