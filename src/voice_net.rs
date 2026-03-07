@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     helpers::calculate_version,
-    udp_packet_net::{self, UdpPacketNet},
+    udp_packet_net::{self, UdpPacketNet, packet::Packet},
 };
 
 mod error;
@@ -40,7 +40,21 @@ impl VoiceNet {
         })
     }
 
-    pub fn send(&self) {}
+    pub fn send<A>(&self, data: Vec<u8>, addr: &A) -> Result<(), error::Error>
+    where
+        A: ToSocketAddrs,
+    {
+        match self.packet_net.send(Packet::from(data), addr) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(match e {
+                udp_packet_net::error::Error::WouldBlock => error::Error::WouldBlock,
+                udp_packet_net::error::Error::Send(e) => error::Error::Send(e),
+                _ => {
+                    panic!("Should not happen")
+                }
+            }),
+        }
+    }
 
     /// Tries to receives a packet from queue
     pub fn recv(&mut self) -> Option<(chrono::DateTime<chrono::Utc>, (SocketAddr, Vec<u8>))> {
