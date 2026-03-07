@@ -35,18 +35,22 @@ impl Packet {
         }
     }
 
+    #[inline]
     pub fn verify_checksum(&self) -> bool {
         self.header.verify_checksum(&self.payload)
     }
 
+    #[inline]
     pub fn header(&self) -> &Header {
         &self.header
     }
 
+    #[inline]
     pub fn update_timestamp(&mut self) {
         self.header.update_timestamp();
     }
 
+    #[inline]
     pub fn payload(&self) -> &[u8] {
         &self.payload
     }
@@ -68,6 +72,7 @@ impl Packet {
 }
 
 impl From<Vec<u8>> for Packet {
+    #[inline]
     fn from(payload: Vec<u8>) -> Self {
         let header = Header::new(&payload);
         Self { header, payload }
@@ -93,18 +98,22 @@ impl Header {
         }
     }
 
+    #[inline]
     pub fn version(&self) -> u32 {
         self.version
     }
 
+    #[inline]
     pub fn timestamp(&self) -> chrono::DateTime<chrono::Utc> {
         self.timestamp
     }
 
+    #[inline]
     pub fn update_timestamp(&mut self) {
         self.timestamp = chrono::Utc::now();
     }
 
+    #[inline]
     pub fn verify_checksum(&self, payload: &[u8]) -> bool {
         hash::Sha256::verify_checksum(payload, &self.checksum)
     }

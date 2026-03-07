@@ -15,11 +15,12 @@ use crate::{
     audio::Audio,
     traits::SampleFormatConversion,
     udp_packet_net::{MAX_PAYLOAD_SIZE, UdpPacketNet, packet::Packet},
+    voice_net::VoiceNet,
 };
 
 pub struct VChat {
     audio: Audio,
-    udp_net: UdpPacketNet,
+    voice_net: VoiceNet,
 
     input_udp_bridge_handle: JoinHandle<()>,
     udp_output_bridge_handle: JoinHandle<()>,
@@ -37,7 +38,7 @@ impl VChat {
         let audio = Audio::new(mic_input_tx, speaker_output_rx, u8::MAX, 50, exit_c);
 
         let exit_c = exit.clone();
-        let (udp_net, udp_sender, udp_receiver) = UdpPacketNet::new(addr, exit_c)?;
+        let voice_net = VoiceNet::new(addr, exit_c);
 
         let exit_c = exit.clone();
         let input_udp_bridge_handle =
@@ -52,7 +53,7 @@ impl VChat {
 
         Ok(Self {
             audio,
-            udp_net,
+            voice_net,
 
             input_udp_bridge_handle,
             udp_output_bridge_handle,
@@ -174,7 +175,7 @@ impl VChat {
 
     pub fn add_address(&self, addr: SocketAddr) {
         let mut addresses = self
-            .udp_net
+            .voice_net
             .addresses
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -186,12 +187,12 @@ impl VChat {
 
     #[inline]
     pub fn get_addresses(&self) -> &std::sync::Arc<std::sync::RwLock<Vec<SocketAddr>>> {
-        &self.udp_net.addresses
+        &self.voice_net.addresses
     }
 
     #[inline]
     pub fn clear_addresses(&self) {
-        self.udp_net
+        self.voice_net
             .addresses
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -205,12 +206,12 @@ impl VChat {
 
     #[inline]
     pub fn udp_net(&self) -> &UdpPacketNet {
-        &self.udp_net
+        &self.voice_net
     }
 
     pub fn stop(self) {
         self.audio.stop();
-        self.udp_net.stop();
+        self.voice_net.stop();
 
         let _ = self.input_udp_bridge_handle.join();
         let _ = self.udp_output_bridge_handle.join();
