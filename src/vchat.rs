@@ -1,7 +1,7 @@
 use std::{
     net::{SocketAddr, ToSocketAddrs},
     sync::{
-        Arc,
+        Arc, Mutex, RwLock,
         atomic::{AtomicBool, Ordering},
         mpsc::{Receiver, RecvTimeoutError, Sender},
     },
@@ -14,16 +14,16 @@ use crate::{
     TIMEOUT,
     audio::Audio,
     traits::SampleFormatConversion,
-    udp_packet_net::{MAX_PAYLOAD_SIZE, UdpPacketNet, packet::Packet},
+    udp_packet_net::{MAX_PAYLOAD_SIZE, packet::Packet},
     voice_net::VoiceNet,
 };
 
 pub struct VChat {
     audio: Audio,
-    voice_net: VoiceNet,
+    voice_net: Arc<Mutex<VoiceNet>>,
+    addresses: Arc<RwLock<Vec<SocketAddr>>>,
 
-    input_udp_bridge_handle: JoinHandle<()>,
-    udp_output_bridge_handle: JoinHandle<()>,
+    udp_bridge_handle: JoinHandle<()>,
 }
 
 impl VChat {
@@ -38,15 +38,23 @@ impl VChat {
         let audio = Audio::new(mic_input_tx, speaker_output_rx, u8::MAX, 50, exit_c);
 
         let exit_c = exit.clone();
-        let voice_net = VoiceNet::new(addr, exit_c);
+        let voice_net = Arc::new(Mutex::new(
+            VoiceNet::new(addr, exit_c).expect("Failed to create VoiceNet."),
+        ));
 
+        let addresses = Arc::new(RwLock::new(Vec::with_capacity(8)));
+
+        let voice_net_c = voice_net.clone();
+        let addresses_c = addresses.clone();
         let exit_c = exit.clone();
-        let input_udp_bridge_handle =
-            thread::spawn(move || Self::input_udp_bridge(mic_output_rx, udp_sender, exit_c));
-
-        let output_sample_format = audio.output_sample_format();
-        let udp_output_bridge_handle = thread::spawn(move || {
-            Self::udp_output_bridge(udp_receiver, speaker_input_tx, exit, output_sample_format)
+        let udp_bridge_handle = thread::spawn(move || {
+            Self::udp_bridge(
+                voice_net_c,
+                addresses_c,
+                mic_output_rx,
+                speaker_input_tx,
+                exit_c,
+            )
         });
 
         audio.play();
@@ -54,15 +62,20 @@ impl VChat {
         Ok(Self {
             audio,
             voice_net,
+            addresses,
 
-            input_udp_bridge_handle,
-            udp_output_bridge_handle,
+            udp_bridge_handle,
         })
     }
 
-    fn input_udp_bridge(
+    fn udp_bridge(
+        voice_net: Arc<Mutex<VoiceNet>>,
+        addresses: Arc<RwLock<Vec<SocketAddr>>>,
+
         input_rx: Receiver<Vec<f32>>,
-        udp_sender: Sender<Packet>,
+        output_tx: crossbeam::channel::Sender<Vec<f32>>,
+        output_sample_format: cpal::SampleFormat,
+
         exit: Arc<AtomicBool>,
     ) {
         loop {
@@ -70,112 +83,118 @@ impl VChat {
                 break;
             };
 
-            let data = match input_rx.recv_timeout(TIMEOUT) {
-                Ok(data) => data,
-                Err(e) => {
-                    if let RecvTimeoutError::Timeout = e {
-                        thread::yield_now();
-                        continue;
-                    } else {
-                        log::warn!("Input UDP Bridge: Input stream closed: {}", e);
-                        break;
-                    }
-                }
+            if let Err(_) = Self::input_udp_bridge(&voice_net, &input_rx) {
+                break;
             };
 
-            // Convert into bytes and split up into packets.
-            let byte_packets: Vec<Vec<u8>> = data
-                .chunks(MAX_PAYLOAD_SIZE / 4)
-                .map(|chunk| {
-                    chunk
-                        .iter()
-                        .flat_map(|sample| sample.to_be_bytes())
-                        .collect::<Vec<u8>>()
-                })
-                .collect();
-
-            log::trace!(
-                "Input UDP Bridge: Preparing {} packet {} bytes.",
-                byte_packets.len(),
-                byte_packets[0].len()
-            );
-
-            for bytes in byte_packets {
-                match udp_sender.send(Packet::from(bytes)) {
-                    Ok(_) => {}
-                    Err(_) => {
-                        log::warn!("Input UDP Bridge: UDP Stream closed.");
-                        break;
-                    }
-                };
-            }
+            if let Err(_) = Self::udp_output_bridge(&voice_net, &output_tx, &output_sample_format) {
+                break;
+            };
         }
 
-        log::info!("Input UDP Bridge: Stopped.");
+        log::warn!("UDP Bridge: Closed")
+    }
+
+    fn input_udp_bridge(
+        voice_net: &Arc<Mutex<VoiceNet>>,
+        input_rx: &Receiver<Vec<f32>>,
+    ) -> Result<(), ()> {
+        let data = match input_rx.recv_timeout(TIMEOUT) {
+            Ok(data) => data,
+            Err(e) => {
+                if let RecvTimeoutError::Timeout = e {
+                    return Ok(());
+                } else {
+                    log::warn!("Input UDP Bridge: Input stream closed: {}", e);
+                    return Err(());
+                }
+            }
+        };
+
+        // Convert into bytes and split up into packets.
+        let byte_packets: Vec<Vec<u8>> = data
+            .chunks(MAX_PAYLOAD_SIZE / 4)
+            .map(|chunk| {
+                chunk
+                    .iter()
+                    .flat_map(|sample| sample.to_be_bytes())
+                    .collect::<Vec<u8>>()
+            })
+            .collect();
+
+        log::trace!(
+            "Input UDP Bridge: Preparing {} packet {} bytes.",
+            byte_packets.len(),
+            byte_packets[0].len()
+        );
+
+        for bytes in byte_packets {
+            match udp_sender.send(Packet::from(bytes)) {
+                Ok(_) => {}
+                Err(_) => {
+                    log::warn!("Input UDP Bridge: UDP Stream closed.");
+                    return Err(());
+                }
+            };
+        }
+
+        Ok(())
     }
 
     fn udp_output_bridge<T>(
-        udp_receiver: Receiver<(SocketAddr, Vec<u8>)>,
-        output_tx: crossbeam::channel::Sender<Vec<T>>,
-        exit: Arc<AtomicBool>,
-        output_sample_format: cpal::SampleFormat,
-    ) where
+        voice_net: &Arc<Mutex<VoiceNet>>,
+        output_tx: &crossbeam::channel::Sender<Vec<T>>,
+        output_sample_format: &cpal::SampleFormat,
+    ) -> Result<(), ()>
+    where
         T: SampleFormatConversion<f32>,
     {
         const AUDIO_VALUE_BYTE_LEN: usize = 4;
 
-        loop {
-            if exit.load(Ordering::Acquire) {
-                break;
-            };
-
-            let (addr, bytes) = match udp_receiver.recv_timeout(TIMEOUT) {
-                Ok(packet) => packet,
-                Err(e) => {
-                    if let RecvTimeoutError::Timeout = e {
-                        thread::yield_now();
-                        continue;
-                    } else {
-                        log::warn!("UDP Output Bridge: Failed to recv new packet: {}", e);
-                        break;
-                    }
+        let (addr, bytes) = match udp_receiver.recv_timeout(TIMEOUT) {
+            Ok(packet) => packet,
+            Err(e) => {
+                if let RecvTimeoutError::Timeout = e {
+                    return Ok(());
+                } else {
+                    log::warn!("UDP Output Bridge: Failed to recv new packet: {}", e);
+                    return Err(());
                 }
-            };
+            }
+        };
 
-            log::trace!(
-                "UDP Output Bridge: Got message from {} with size {}",
-                addr,
-                bytes.len()
-            );
+        log::trace!(
+            "UDP Output Bridge: Got message from {} with size {}",
+            addr,
+            bytes.len()
+        );
 
-            let data: Vec<f32> = bytes
-                .chunks(AUDIO_VALUE_BYTE_LEN)
-                .map(|chunk| {
-                    let mut buf = [0u8; AUDIO_VALUE_BYTE_LEN];
-                    buf.copy_from_slice(chunk);
+        let data: Vec<f32> = bytes
+            .chunks(AUDIO_VALUE_BYTE_LEN)
+            .map(|chunk| {
+                let mut buf = [0u8; AUDIO_VALUE_BYTE_LEN];
+                buf.copy_from_slice(chunk);
 
-                    buf
-                })
-                .map(f32::from_be_bytes)
-                .collect();
+                buf
+            })
+            .map(f32::from_be_bytes)
+            .collect();
 
-            let samples = T::from_sample_buf(data, Some(output_sample_format)).collect();
+        let samples = T::from_sample_buf(data, Some(output_sample_format)).collect();
 
-            match output_tx.send(samples) {
-                Ok(_) => {}
-                Err(e) => {
-                    log::warn!("UDP Output Bridge: Output device closed channel: {}", e);
-                    break;
-                }
-            };
-        }
+        match output_tx.send(samples) {
+            Ok(_) => {}
+            Err(e) => {
+                log::warn!("UDP Output Bridge: Output device closed channel: {}", e);
+                return Err(());
+            }
+        };
 
-        log::info!("UDP Output Bridge: Stopped.");
+        Ok(())
     }
 
     pub fn add_address(&self, addr: SocketAddr) {
         let mut addresses = self
-            .voice_net
             .addresses
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -187,13 +206,16 @@ impl VChat {
 
     #[inline]
     pub fn get_addresses(&self) -> &std::sync::Arc<std::sync::RwLock<Vec<SocketAddr>>> {
-        &self.voice_net.addresses
+        &self.addresses
+    }
+
+    pub fn remove_address(&self, addr: SocketAddr) {
+        todo!()
     }
 
     #[inline]
     pub fn clear_addresses(&self) {
-        self.voice_net
-            .addresses
+        self.addresses
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clear();
@@ -205,15 +227,13 @@ impl VChat {
     }
 
     #[inline]
-    pub fn udp_net(&self) -> &UdpPacketNet {
+    pub fn voice_net(&self) -> &VoiceNet {
         &self.voice_net
     }
 
     pub fn stop(self) {
         self.audio.stop();
-        self.voice_net.stop();
 
-        let _ = self.input_udp_bridge_handle.join();
-        let _ = self.udp_output_bridge_handle.join();
+        let _ = self.udp_bridge_handle.join();
     }
 }

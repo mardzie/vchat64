@@ -141,7 +141,7 @@ impl Audio {
         };
 
         log::trace!("Output Data Callback: Got sample {} bytes", sample.len());
-        
+
         let buf_len = buf.len();
         let mut buf_used = 0;
 
