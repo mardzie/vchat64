@@ -3,7 +3,7 @@ use std::{
     sync::{
         Arc, Mutex, RwLock,
         atomic::{AtomicBool, Ordering},
-        mpsc::{Receiver, RecvTimeoutError, Sender},
+        mpsc::{Receiver, RecvTimeoutError},
     },
     thread::{self, JoinHandle},
 };
@@ -15,7 +15,7 @@ use crate::{
     audio::Audio,
     traits::SampleFormatConversion,
     udp_packet_net::{MAX_PAYLOAD_SIZE, packet::Packet},
-    voice_net::VoiceNet,
+    voice_net::{self, VoiceNet},
 };
 
 pub struct VChat {
@@ -47,12 +47,14 @@ impl VChat {
         let voice_net_c = voice_net.clone();
         let addresses_c = addresses.clone();
         let exit_c = exit.clone();
+        let output_sample_format = audio.output_sample_format();
         let udp_bridge_handle = thread::spawn(move || {
             Self::udp_bridge(
                 voice_net_c,
                 addresses_c,
                 mic_output_rx,
                 speaker_input_tx,
+                output_sample_format,
                 exit_c,
             )
         });
@@ -83,7 +85,7 @@ impl VChat {
                 break;
             };
 
-            if let Err(_) = Self::input_udp_bridge(&voice_net, &input_rx) {
+            if let Err(_) = Self::input_udp_bridge(&voice_net, &input_rx, &addresses) {
                 break;
             };
 
@@ -98,6 +100,7 @@ impl VChat {
     fn input_udp_bridge(
         voice_net: &Arc<Mutex<VoiceNet>>,
         input_rx: &Receiver<Vec<f32>>,
+        addresses: &Arc<RwLock<Vec<SocketAddr>>>,
     ) -> Result<(), ()> {
         let data = match input_rx.recv_timeout(TIMEOUT) {
             Ok(data) => data,
@@ -128,14 +131,33 @@ impl VChat {
             byte_packets[0].len()
         );
 
+        let voice_net_lock = voice_net
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let addresses_lock = addresses
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         for bytes in byte_packets {
-            match udp_sender.send(Packet::from(bytes)) {
-                Ok(_) => {}
-                Err(_) => {
-                    log::warn!("Input UDP Bridge: UDP Stream closed.");
-                    return Err(());
-                }
-            };
+            for addr in addresses_lock.iter() {
+                match voice_net_lock.send(bytes.clone(), addr) {
+                    Ok(_) => {}
+                    Err(e) => match e {
+                        voice_net::error::Error::WouldBlock => {
+                            log::warn!("Input UDP Bridge: Failed to send `Packet` to {}", addr);
+                        }
+                        voice_net::error::Error::Send(e) => {
+                            log::warn!(
+                                "Inptu UDP Bridge: Failed to send `Packet` to {}: {}",
+                                addr,
+                                e
+                            );
+                        }
+                        _ => {
+                            panic!("Unexpected error returned.")
+                        }
+                    },
+                };
+            }
         }
 
         Ok(())
@@ -151,15 +173,14 @@ impl VChat {
     {
         const AUDIO_VALUE_BYTE_LEN: usize = 4;
 
-        let (addr, bytes) = match udp_receiver.recv_timeout(TIMEOUT) {
-            Ok(packet) => packet,
-            Err(e) => {
-                if let RecvTimeoutError::Timeout = e {
-                    return Ok(());
-                } else {
-                    log::warn!("UDP Output Bridge: Failed to recv new packet: {}", e);
-                    return Err(());
-                }
+        let (addr, bytes) = {
+            let mut voice_net_lock = voice_net
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if let Some((_, transmission)) = voice_net_lock.recv() {
+                transmission
+            } else {
+                return Ok(());
             }
         };
 
@@ -180,7 +201,7 @@ impl VChat {
             .map(f32::from_be_bytes)
             .collect();
 
-        let samples = T::from_sample_buf(data, Some(output_sample_format)).collect();
+        let samples = T::from_sample_buf(data, Some(output_sample_format.clone())).collect();
 
         match output_tx.send(samples) {
             Ok(_) => {}
@@ -227,7 +248,7 @@ impl VChat {
     }
 
     #[inline]
-    pub fn voice_net(&self) -> &VoiceNet {
+    pub fn voice_net(&self) -> &Arc<Mutex<VoiceNet>> {
         &self.voice_net
     }
 

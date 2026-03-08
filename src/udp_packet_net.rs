@@ -44,14 +44,20 @@ impl UdpPacketNet {
     ///
     /// # Error:
     ///
-    /// On blocking behavior `io::ErrorKind::WouldBlock` is returned.
+    /// On blocking behavior `Error::WouldBlock` is returned.
     pub fn send<A>(&self, packet: Packet, addr: A) -> Result<usize, error::Error>
     where
         A: ToSocketAddrs,
     {
         self.socket
             .send_to(&packet.into_bytes(), addr)
-            .map_err(|e| error::Error::Send(e))
+            .map_err(|e| {
+                if e.kind() == std::io::ErrorKind::WouldBlock {
+                    error::Error::WouldBlock
+                } else {
+                    error::Error::Send(e)
+                }
+            })
     }
 
     /// Reads a [`Packet`] from stream and returns the `Packet` and the source `SocketAddr`.

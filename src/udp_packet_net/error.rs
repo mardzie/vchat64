@@ -12,4 +12,6 @@ pub enum Error {
     Recv(io::Error),
     #[error("Checksum Mismatch")]
     ChecksumMismatch,
+    #[error("Would Block")]
+    WouldBlock,
 }

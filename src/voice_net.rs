@@ -9,7 +9,7 @@ use crate::{
     udp_packet_net::{self, UdpPacketNet, packet::Packet},
 };
 
-mod error;
+pub mod error;
 
 const PACKET_BUF_TIME_IN_QUEUE: chrono::Duration = chrono::Duration::milliseconds(100);
 
@@ -40,6 +40,9 @@ impl VoiceNet {
         })
     }
 
+    /// Send a packet.
+    ///
+    /// This function does not block.
     pub fn send<A>(&self, data: Vec<u8>, addr: &A) -> Result<(), error::Error>
     where
         A: ToSocketAddrs,
@@ -56,7 +59,9 @@ impl VoiceNet {
         }
     }
 
-    /// Tries to receives a packet from queue
+    /// Tries to receives a packet from queue. If no packet is available `None` is returned.
+    ///
+    /// This function does not block.
     pub fn recv(&mut self) -> Option<(chrono::DateTime<chrono::Utc>, (SocketAddr, Vec<u8>))> {
         match self.read_packet() {
             Ok(_) => {}
