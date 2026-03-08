@@ -13,7 +13,7 @@ mod voice_net;
 use crate::app::App;
 use ratatui::crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
-pub const TIMEOUT: std::time::Duration = std::time::Duration::from_millis(0);
+pub const TIMEOUT: std::time::Duration = std::time::Duration::from_micros(100);
 
 fn main() -> Result<()> {
     let file = std::fs::File::create("./log.log").unwrap();
