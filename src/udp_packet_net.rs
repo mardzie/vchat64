@@ -5,12 +5,13 @@ pub mod packet;
 
 use packet::{HEADER_LEN, Header, Packet};
 
+use crate::TIMEOUT;
+
 pub const MAX_PACKET_SIZE: usize = 512;
 /// The max payload size is 512 bytes.
 ///
 /// This is to maximize throughput and minimize latency and bytes lost.
 pub const MAX_PAYLOAD_SIZE: usize = MAX_PACKET_SIZE - HEADER_LEN;
-pub const MAX_PACKAGE_AGE_SEC: i64 = 10;
 
 /// The UDP Socket handler.
 ///
@@ -31,6 +32,12 @@ impl UdpPacketNet {
         socket
             .set_nonblocking(true)
             .expect("Failed to put socket into blocking mode!");
+        socket
+            .set_read_timeout(Some(TIMEOUT))
+            .expect("Failed to set UDP Socket read timeout.");
+        socket
+            .set_write_timeout(Some(TIMEOUT))
+            .expect("Failed to set UDP Socket write timeout.");
 
         Ok(UdpPacketNet {
             socket,
