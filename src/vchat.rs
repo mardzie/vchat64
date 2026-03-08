@@ -3,20 +3,22 @@ use std::{
     sync::{
         Arc, Mutex, RwLock,
         atomic::{AtomicBool, Ordering},
-        mpsc::{Receiver, RecvTimeoutError},
     },
     thread::{self, JoinHandle},
 };
 
 use color_eyre::eyre::Result;
+use crossbeam::channel::{Receiver, RecvTimeoutError, Sender};
 
 use crate::{
     TIMEOUT,
     audio::Audio,
     traits::SampleFormatConversion,
-    udp_packet_net::{MAX_PAYLOAD_SIZE, packet::Packet},
+    udp_packet_net::MAX_PAYLOAD_SIZE,
     voice_net::{self, VoiceNet},
 };
+
+pub const AUDIO_CHANNELS_BUF_SIZE: usize = 1024 * 16;
 
 pub struct VChat {
     audio: Audio,
@@ -31,8 +33,9 @@ impl VChat {
     where
         A: ToSocketAddrs,
     {
-        let (mic_input_tx, mic_output_rx) = std::sync::mpsc::channel();
-        let (speaker_input_tx, speaker_output_rx) = crossbeam::channel::unbounded();
+        let (mic_input_tx, mic_output_rx) = crossbeam::channel::bounded(AUDIO_CHANNELS_BUF_SIZE);
+        let (speaker_input_tx, speaker_output_rx) =
+            crossbeam::channel::bounded(AUDIO_CHANNELS_BUF_SIZE);
 
         let exit_c = exit.clone();
         let audio = Audio::new(mic_input_tx, speaker_output_rx, u8::MAX, 50, exit_c);
@@ -75,7 +78,7 @@ impl VChat {
         addresses: Arc<RwLock<Vec<SocketAddr>>>,
 
         input_rx: Receiver<Vec<f32>>,
-        output_tx: crossbeam::channel::Sender<Vec<f32>>,
+        output_tx: Sender<Vec<f32>>,
         output_sample_format: cpal::SampleFormat,
 
         exit: Arc<AtomicBool>,

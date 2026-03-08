@@ -3,15 +3,16 @@ use std::{
     sync::{
         Arc,
         atomic::{self, AtomicBool},
-        mpsc::Sender,
     },
 };
 
 use cpal::{Host, InputCallbackInfo, OutputCallbackInfo, SampleFormat, default_host};
+use crossbeam::channel::{Receiver, Sender, TryIter};
 
 use crate::{
     audio::{audio_processor::AudioProcessor, input::InputStream, output::OutputStream},
     traits::SampleFormatCenter,
+    vchat::AUDIO_CHANNELS_BUF_SIZE,
 };
 
 pub mod audio_processor;
@@ -40,7 +41,7 @@ impl Audio {
     /// `output_channel` is the channel that connects to the speaker.
     pub fn new(
         input_channel: Sender<Vec<f32>>,
-        output_channel: crossbeam::channel::Receiver<Vec<f32>>,
+        output_channel: Receiver<Vec<f32>>,
 
         init_volume: u8,
         init_cutoff: u8,
@@ -49,7 +50,8 @@ impl Audio {
     ) -> Self {
         let host = default_host();
 
-        let (input_tx_to_audio_processor, audio_processor_rx) = std::sync::mpsc::channel();
+        let (input_tx_to_audio_processor, audio_processor_rx) =
+            crossbeam::channel::bounded(AUDIO_CHANNELS_BUF_SIZE);
         let mut input = InputStream::new(&host).expect("Failed to create new input object.");
         log::info!("Input Stream: Using config: {:?}", input.config());
         input
@@ -127,7 +129,7 @@ impl Audio {
     fn output_data_callback<T>(
         buf: &mut [T],
         info: &OutputCallbackInfo,
-        output_channel: &mut Peekable<crossbeam::channel::TryIter<Vec<T>>>,
+        output_channel: &mut Peekable<TryIter<Vec<T>>>,
         sample_format: SampleFormat,
     ) where
         T: Copy + SampleFormatCenter,

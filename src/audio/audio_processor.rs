@@ -2,10 +2,11 @@ use std::{
     sync::{
         Arc,
         atomic::{self, AtomicBool},
-        mpsc::{Receiver, Sender, TryRecvError},
     },
     thread::{self, JoinHandle},
 };
+
+use crossbeam::channel::{Receiver, Sender, TryRecvError};
 
 use crate::traits::SampleFormatConversion;
 
