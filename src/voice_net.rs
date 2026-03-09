@@ -65,8 +65,8 @@ impl VoiceNet {
     pub fn recv(&mut self) -> Option<(chrono::DateTime<chrono::Utc>, (SocketAddr, Vec<u8>))> {
         match self.read_packet() {
             Ok(_) => {}
-            Err(_) => {
-                log::warn!("Failed to read packet.");
+            Err(e) => {
+                log::warn!("Failed to read packet: {}", e);
             }
         }
 
@@ -91,18 +91,20 @@ impl VoiceNet {
     /// # Error
     ///
     /// Returns `Err(())` if no valid packet could be read.
-    fn read_packet(&mut self) -> Result<(), ()> {
+    fn read_packet(&mut self) -> Result<(), String> {
         let (packet, src_addr) = match self.packet_net.recv() {
             Ok(packet) => packet,
             Err(e) => match e {
                 udp_packet_net::error::Error::Recv(e) => {
-                    log::warn!("Failed to receive packet from UDP Packet Net: {}", e);
-                    return Err(());
+                    return Err(format!(
+                        "Failed to receive packet from UDP Packet Net: {}",
+                        e
+                    ));
                 }
                 udp_packet_net::error::Error::ChecksumMismatch => {
-                    log::warn!("UDP Packet Checksum Mismatch.");
-                    return Err(());
+                    return Err(format!("UDP Packet Checksum Mismatch."));
                 }
+                udp_packet_net::error::Error::WouldBlock => return Ok(()),
                 _ => {
                     panic!(
                         "Invalid Error Variant returned! in `voice_net.rs` in `VoiceNet::recv()`"
@@ -113,8 +115,7 @@ impl VoiceNet {
 
         // Version
         if packet.header().version() != self.current_packet_version {
-            log::warn!("Version mismatch: Dropping packet.");
-            return Err(());
+            return Err(format!("Version mismatch: Dropping packet."));
         };
 
         let packet_timestamp = packet.header().timestamp();
@@ -126,11 +127,15 @@ impl VoiceNet {
 
         // Do not insert too old packets.
         let idx = packet_buf.partition_point(|(ts, _)| ts < &packet_timestamp);
-        if idx > 0 {
+        if idx > 0 || packet_buf.len() == 0 {
             packet_buf.insert(idx, (packet_timestamp, (src_addr, packet.payload)));
             Ok(())
         } else {
-            Err(())
+            Err(format!(
+                "Packet too old: Packet {} < {} Latest",
+                packet_timestamp,
+                packet_buf.get(0).expect("Has to be Some").0
+            ))
         }
     }
 }
