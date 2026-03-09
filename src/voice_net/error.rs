@@ -3,11 +3,18 @@ use std::io;
 use crate::udp_packet_net;
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("UDP Net Error: {0}")]
-    UdpNet(#[from] udp_packet_net::error::Error),
+pub enum SendError {
     #[error("Send Error: {0}")]
-    Send(io::Error),
+    Io(#[from] io::Error),
     #[error("Would Block")]
     WouldBlock,
+}
+
+impl From<udp_packet_net::error::SendError> for SendError {
+    fn from(e: udp_packet_net::error::SendError) -> Self {
+        match e {
+            udp_packet_net::error::SendError::Io(e) => Self::Io(e),
+            udp_packet_net::error::SendError::WouldBlock => Self::WouldBlock,
+        }
+    }
 }

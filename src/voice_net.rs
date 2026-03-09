@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    io,
     net::{SocketAddr, ToSocketAddrs},
     sync::{Arc, Mutex, atomic::AtomicBool},
 };
@@ -25,7 +26,7 @@ pub struct VoiceNet {
 }
 
 impl VoiceNet {
-    pub fn new<A>(addr: A, exit: Arc<AtomicBool>) -> Result<Self, error::Error>
+    pub fn new<A>(addr: A, exit: Arc<AtomicBool>) -> Result<Self, io::Error>
     where
         A: ToSocketAddrs,
     {
@@ -43,19 +44,13 @@ impl VoiceNet {
     /// Send a packet.
     ///
     /// This function does not block.
-    pub fn send<A>(&self, data: Vec<u8>, addr: &A) -> Result<(), error::Error>
+    pub fn send<A>(&self, data: Vec<u8>, addr: &A) -> Result<(), error::SendError>
     where
         A: ToSocketAddrs,
     {
         match self.packet_net.send(Packet::from(data), addr) {
             Ok(_) => Ok(()),
-            Err(e) => Err(match e {
-                udp_packet_net::error::Error::WouldBlock => error::Error::WouldBlock,
-                udp_packet_net::error::Error::Send(e) => error::Error::Send(e),
-                _ => {
-                    panic!("Should not happen")
-                }
-            }),
+            Err(e) => Err(error::SendError::from(e)),
         }
     }
 
@@ -95,27 +90,22 @@ impl VoiceNet {
         let (packet, src_addr) = match self.packet_net.recv() {
             Ok(packet) => packet,
             Err(e) => match e {
-                udp_packet_net::error::Error::Recv(e) => {
+                udp_packet_net::error::RecvError::Io(e) => {
                     return Err(format!(
                         "Failed to receive packet from UDP Packet Net: {}",
                         e
                     ));
                 }
-                udp_packet_net::error::Error::ChecksumMismatch => {
-                    return Err(format!("UDP Packet Checksum Mismatch."));
+                udp_packet_net::error::RecvError::ChecksumMismatch => {
+                    return Err("UDP Packet Checksum Mismatch.".to_string());
                 }
-                udp_packet_net::error::Error::WouldBlock => return Ok(()),
-                _ => {
-                    panic!(
-                        "Invalid Error Variant returned! in `voice_net.rs` in `VoiceNet::recv()`"
-                    );
-                }
+                udp_packet_net::error::RecvError::WouldBlock => return Ok(()),
             },
         };
 
         // Version
         if packet.header().version() != self.current_packet_version {
-            return Err(format!("Version mismatch: Dropping packet."));
+            return Err("Version mismatch: Dropping packet.".to_string());
         };
 
         let packet_timestamp = packet.header().timestamp();
@@ -127,14 +117,14 @@ impl VoiceNet {
 
         // Do not insert too old packets.
         let idx = packet_buf.partition_point(|(ts, _)| ts < &packet_timestamp);
-        if idx > 0 || packet_buf.len() == 0 {
+        if idx > 0 || packet_buf.is_empty() {
             packet_buf.insert(idx, (packet_timestamp, (src_addr, packet.payload)));
             Ok(())
         } else {
             Err(format!(
-                "Packet too old: Packet {} < {} Latest",
+                "Packet too old: Packet {} < {} Oldest",
                 packet_timestamp,
-                packet_buf.get(0).expect("Has to be Some").0
+                packet_buf.front().expect("Has to be Some").0 // Has to be Some or the If should have been chosen.
             ))
         }
     }

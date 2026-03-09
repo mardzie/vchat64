@@ -1,4 +1,7 @@
-use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
+use std::{
+    io,
+    net::{SocketAddr, ToSocketAddrs, UdpSocket},
+};
 
 pub mod error;
 pub mod packet;
@@ -24,11 +27,11 @@ pub struct UdpPacketNet {
 }
 
 impl UdpPacketNet {
-    pub fn new<A>(addr: A) -> Result<Self, error::Error>
+    pub fn new<A>(addr: A) -> Result<Self, std::io::Error>
     where
         A: ToSocketAddrs,
     {
-        let socket = UdpSocket::bind(addr).map_err(|e| error::Error::SocketBind(e))?;
+        let socket = UdpSocket::bind(addr)?;
         socket
             .set_nonblocking(true)
             .expect("Failed to put socket into blocking mode!");
@@ -52,7 +55,7 @@ impl UdpPacketNet {
     /// # Error:
     ///
     /// On blocking behavior `Error::WouldBlock` is returned.
-    pub fn send<A>(&self, packet: Packet, addr: A) -> Result<usize, error::Error>
+    pub fn send<A>(&self, packet: Packet, addr: A) -> Result<usize, error::SendError>
     where
         A: ToSocketAddrs,
     {
@@ -60,9 +63,9 @@ impl UdpPacketNet {
             .send_to(&packet.into_bytes(), addr)
             .map_err(|e| {
                 if e.kind() == std::io::ErrorKind::WouldBlock {
-                    error::Error::WouldBlock
+                    error::SendError::WouldBlock
                 } else {
-                    error::Error::Send(e)
+                    error::SendError::Io(e)
                 }
             })
     }
@@ -74,11 +77,14 @@ impl UdpPacketNet {
     /// # Error:
     ///
     /// On blocking behavior `io::ErrorKind::WouldBlock` is returned.
-    pub fn recv(&mut self) -> Result<(Packet, SocketAddr), error::Error> {
-        let (len, addr) = self
-            .socket
-            .recv_from(&mut self.recv_buf)
-            .map_err(|e| error::Error::Recv(e))?;
+    pub fn recv(&mut self) -> Result<(Packet, SocketAddr), error::RecvError> {
+        let (len, addr) = match self.socket.recv_from(&mut self.recv_buf) {
+            Ok(packet) => packet,
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                return Err(error::RecvError::WouldBlock);
+            }
+            Err(e) => return Err(error::RecvError::Io(e)),
+        };
 
         // Header
         let mut header_bytes = [0u8; HEADER_LEN];
@@ -89,7 +95,7 @@ impl UdpPacketNet {
         let payload_bytes = self.recv_buf[HEADER_LEN..len].to_vec();
         let packet = match Packet::new(header, payload_bytes) {
             Ok(packet) => packet,
-            Err(_) => return Err(error::Error::ChecksumMismatch),
+            Err(_) => return Err(error::RecvError::ChecksumMismatch),
         };
 
         Ok((packet, addr))

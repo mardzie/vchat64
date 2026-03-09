@@ -88,11 +88,11 @@ impl VChat {
                 break;
             };
 
-            if let Err(_) = Self::input_udp_bridge(&voice_net, &input_rx, &addresses) {
+            if Self::input_udp_bridge(&voice_net, &input_rx, &addresses).is_err() {
                 break;
             };
 
-            if let Err(_) = Self::udp_output_bridge(&voice_net, &output_tx, &output_sample_format) {
+            if Self::udp_output_bridge(&voice_net, &output_tx, &output_sample_format).is_err() {
                 break;
             };
         }
@@ -145,18 +145,15 @@ impl VChat {
                 match voice_net_lock.send(bytes.clone(), addr) {
                     Ok(_) => {}
                     Err(e) => match e {
-                        voice_net::error::Error::WouldBlock => {
+                        voice_net::error::SendError::WouldBlock => {
                             log::warn!("Input UDP Bridge: Failed to send `Packet` to {}", addr);
                         }
-                        voice_net::error::Error::Send(e) => {
+                        voice_net::error::SendError::Io(e) => {
                             log::warn!(
                                 "Inptu UDP Bridge: Failed to send `Packet` to {}: {}",
                                 addr,
                                 e
                             );
-                        }
-                        _ => {
-                            panic!("Unexpected error returned.")
                         }
                     },
                 };
@@ -204,7 +201,7 @@ impl VChat {
             .map(f32::from_be_bytes)
             .collect();
 
-        let samples = T::from_sample_buf(data, Some(output_sample_format.clone())).collect();
+        let samples = T::from_sample_buf(data, Some(*output_sample_format)).collect();
 
         match output_tx.send(samples) {
             Ok(_) => {}
