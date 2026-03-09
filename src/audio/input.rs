@@ -46,7 +46,7 @@ impl InputStream {
                 }
             },
         };
-        
+
         log::info!("New InputStream created.");
 
         Ok(Self {
