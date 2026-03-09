@@ -134,16 +134,6 @@ impl Audio {
     ) where
         T: Copy + SampleFormatCenter,
     {
-        let sample = match output_channel.next() {
-            Some(sample) => sample,
-            None => {
-                log::warn!("Output Device: Sender closed channel");
-                return;
-            }
-        };
-
-        log::trace!("Output Data Callback: Got sample {} bytes", sample.len());
-
         let buf_len = buf.len();
         let mut buf_used = 0;
 
