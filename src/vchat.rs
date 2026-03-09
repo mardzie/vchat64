@@ -12,6 +12,7 @@ use crate::{
     audio::Audio,
     helpers::should_exit,
     traits::SampleFormatConversion,
+    types::{ArcMutex, ArcRwLock},
     udp_packet_net::MAX_PAYLOAD_SIZE,
     voice_net::{self, VoiceNet},
 };
@@ -20,8 +21,8 @@ pub const AUDIO_CHANNELS_BUF_SIZE: usize = 1024 * 16;
 
 pub struct VChat {
     audio: Audio,
-    voice_net: Arc<Mutex<VoiceNet>>,
-    addresses: Arc<RwLock<Vec<SocketAddr>>>,
+    voice_net: ArcMutex<VoiceNet>,
+    addresses: ArcRwLock<Vec<SocketAddr>>,
 
     udp_bridge_handle: JoinHandle<()>,
 }
@@ -72,8 +73,8 @@ impl VChat {
     }
 
     fn udp_bridge(
-        voice_net: Arc<Mutex<VoiceNet>>,
-        addresses: Arc<RwLock<Vec<SocketAddr>>>,
+        voice_net: ArcMutex<VoiceNet>,
+        addresses: ArcRwLock<Vec<SocketAddr>>,
 
         input_rx: Receiver<Vec<f32>>,
         output_tx: Sender<Vec<f32>>,
@@ -99,9 +100,9 @@ impl VChat {
     }
 
     fn input_udp_bridge(
-        voice_net: &Arc<Mutex<VoiceNet>>,
+        voice_net: &ArcMutex<VoiceNet>,
         input_rx: &Receiver<Vec<f32>>,
-        addresses: &Arc<RwLock<Vec<SocketAddr>>>,
+        addresses: &ArcRwLock<Vec<SocketAddr>>,
     ) -> Result<(), ()> {
         let data = match input_rx.recv_timeout(TIMEOUT) {
             Ok(data) => data,
@@ -162,7 +163,7 @@ impl VChat {
     }
 
     fn udp_output_bridge<T>(
-        voice_net: &Arc<Mutex<VoiceNet>>,
+        voice_net: &ArcMutex<VoiceNet>,
         output_tx: &crossbeam::channel::Sender<Vec<T>>,
         output_sample_format: &cpal::SampleFormat,
     ) -> Result<(), ()>
@@ -246,7 +247,7 @@ impl VChat {
     }
 
     #[inline]
-    pub fn voice_net(&self) -> &Arc<Mutex<VoiceNet>> {
+    pub fn voice_net(&self) -> &ArcMutex<VoiceNet> {
         &self.voice_net
     }
 

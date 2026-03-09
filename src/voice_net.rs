@@ -7,12 +7,15 @@ use std::{
 
 use crate::{
     helpers::calculate_version,
+    types::ArcMutex,
     udp_packet_net::{self, UdpPacketNet, packet::Packet},
 };
 
 pub mod error;
 
 const PACKET_BUF_TIME_IN_QUEUE: chrono::Duration = chrono::Duration::milliseconds(100);
+
+pub type PacketTuple = (SocketAddr, Vec<u8>);
 
 #[derive(Debug)]
 pub struct VoiceNet {
@@ -21,8 +24,7 @@ pub struct VoiceNet {
     packet_net: UdpPacketNet,
     exit: Arc<AtomicBool>,
 
-    incoming_packet_buf:
-        Arc<Mutex<VecDeque<(chrono::DateTime<chrono::Utc>, (SocketAddr, Vec<u8>))>>>,
+    incoming_packet_buf: ArcMutex<VecDeque<(chrono::DateTime<chrono::Utc>, PacketTuple)>>,
 }
 
 impl VoiceNet {
@@ -57,7 +59,7 @@ impl VoiceNet {
     /// Tries to receives a packet from queue. If no packet is available `None` is returned.
     ///
     /// This function does not block.
-    pub fn recv(&mut self) -> Option<(chrono::DateTime<chrono::Utc>, (SocketAddr, Vec<u8>))> {
+    pub fn recv(&mut self) -> Option<(chrono::DateTime<chrono::Utc>, PacketTuple)> {
         match self.read_packet() {
             Ok(_) => {}
             Err(e) => {

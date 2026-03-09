@@ -1,3 +1,5 @@
+#![warn(clippy::all)]
+
 use color_eyre::Result;
 
 mod app;
@@ -6,6 +8,7 @@ mod hash;
 mod helpers;
 mod state;
 mod traits;
+mod types;
 mod udp_packet_net;
 mod vchat;
 mod voice_net;
