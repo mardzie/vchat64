@@ -22,7 +22,7 @@ pub mod config;
 pub mod widgets;
 
 use crate::{
-    TIMEOUT,
+    CHILL_TIMEOUT,
     app::{app_events::Event, config::Config, widgets::line_text_area::LineTextArea},
     helpers::should_exit,
     state::AppState,
@@ -109,7 +109,7 @@ impl App {
                 break;
             };
 
-            match event::poll(TIMEOUT) {
+            match event::poll(CHILL_TIMEOUT) {
                 Ok(x) if x => {}
                 Ok(_) => continue,
                 Err(e) => {
@@ -440,7 +440,7 @@ impl App {
             .title(title)
             .title_alignment(Alignment::Left);
 
-        if let AppState::CodeInput = self.state {
+        if AppState::CodeInput == self.state {
             let instructions = Line::from(vec![" Exit Input".into(), " <ESC> ".bold().yellow()]);
             text_area_block = text_area_block.title_bottom(instructions);
         };
