@@ -8,7 +8,7 @@ use std::{
 
 use crossbeam::channel::{Receiver, Sender, TryRecvError};
 
-use crate::traits::SampleFormatConversion;
+use crate::{helpers::should_exit, traits::SampleFormatConversion};
 
 #[derive(Debug)]
 pub struct AudioProcessor {
@@ -53,7 +53,7 @@ impl AudioProcessor {
         T: SampleFormatConversion<f32>,
     {
         loop {
-            if exit.load(atomic::Ordering::Acquire) {
+            if should_exit(&exit) {
                 break;
             };
 

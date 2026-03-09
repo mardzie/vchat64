@@ -1,9 +1,6 @@
 use std::{
     net::{SocketAddr, ToSocketAddrs},
-    sync::{
-        Arc, Mutex, RwLock,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, Mutex, RwLock, atomic::AtomicBool},
     thread::{self, JoinHandle},
 };
 
@@ -13,6 +10,7 @@ use crossbeam::channel::{Receiver, RecvTimeoutError, Sender};
 use crate::{
     TIMEOUT,
     audio::Audio,
+    helpers::should_exit,
     traits::SampleFormatConversion,
     udp_packet_net::MAX_PAYLOAD_SIZE,
     voice_net::{self, VoiceNet},
@@ -84,7 +82,7 @@ impl VChat {
         exit: Arc<AtomicBool>,
     ) {
         loop {
-            if exit.load(Ordering::Acquire) {
+            if should_exit(&exit) {
                 break;
             };
 

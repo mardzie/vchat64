@@ -1,3 +1,5 @@
+use std::sync::{Arc, atomic::AtomicBool};
+
 use crate::traits::InPlaceEndiannessConversion;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -29,6 +31,12 @@ pub fn calculate_version() -> u32 {
 
     let places = (minor as f64).log(10.0).floor() as u32 + 1;
     major * 10_u32.pow(places) + minor
+}
+
+/// Get value of exit.
+#[inline(always)]
+pub fn should_exit(exit: &Arc<AtomicBool>) -> bool {
+    exit.load(std::sync::atomic::Ordering::Acquire)
 }
 
 impl InPlaceEndiannessConversion for Vec<u8> {

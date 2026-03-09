@@ -24,6 +24,7 @@ pub mod widgets;
 use crate::{
     TIMEOUT,
     app::{app_events::Event, config::Config, widgets::line_text_area::LineTextArea},
+    helpers::should_exit,
     state::AppState,
     vchat::VChat,
 };
@@ -92,7 +93,7 @@ impl App {
 
         self.vchat.audio().play();
 
-        while !self.exit.load(Ordering::Acquire) {
+        while !should_exit(&self.exit) {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_event()?;
         }
@@ -104,7 +105,7 @@ impl App {
 
     fn crossterm_event_reader(event_reader: SyncSender<Event>, exit: Arc<AtomicBool>) {
         loop {
-            if exit.load(Ordering::Acquire) {
+            if should_exit(&exit) {
                 break;
             };
 
