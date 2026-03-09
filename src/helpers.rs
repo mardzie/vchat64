@@ -36,7 +36,7 @@ pub fn calculate_version() -> u32 {
 /// Get value of exit.
 #[inline(always)]
 pub fn should_exit(exit: &Arc<AtomicBool>) -> bool {
-    exit.load(std::sync::atomic::Ordering::Acquire)
+    exit.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 impl InPlaceEndiannessConversion for Vec<u8> {
