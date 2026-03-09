@@ -128,7 +128,7 @@ impl App {
                 }
             };
 
-            if let Err(_) = event_reader.send(event) {
+            if event_reader.send(event).is_err() {
                 log::error!("Crossterm Event Reader: Reading channel closed.");
                 break;
             };
@@ -148,7 +148,7 @@ impl App {
 
     fn to_app_state(&mut self) {
         self.state = AppState::App;
-        if let Err(_) = self.event_channel_tx.try_send(Event::ReDraw) {
+        if self.event_channel_tx.try_send(Event::ReDraw).is_err() {
             log::warn!("Failed to issue redraw: Content may be outdated: Press any key to update.");
         };
     }
@@ -415,18 +415,17 @@ impl App {
         let block = Block::new().borders(Borders::TOP).title(title);
         block.render(public_header_area, buf);
 
-        let public_friend_code =
-            Line::from(self.get_public_friend_code().map_or_else(|x| x, |y| y))
-                .bold()
-                .red()
-                .centered();
+        let public_friend_code = Line::from(self.get_public_friend_code().unwrap_or_else(|x| x))
+            .bold()
+            .red()
+            .centered();
         public_friend_code.render(public_code_area, buf);
 
         let title = Line::from(" Local Friend Code ").bold().yellow();
         let block = Block::new().borders(Borders::TOP).title(title);
         block.render(local_header_area, buf);
 
-        let local_friend_code = Line::from(self.get_local_friend_code().map_or_else(|x| x, |y| y))
+        let local_friend_code = Line::from(self.get_local_friend_code().unwrap_or_else(|x| x))
             .bold()
             .red()
             .centered();

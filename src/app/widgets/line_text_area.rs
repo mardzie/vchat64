@@ -118,15 +118,12 @@ impl LineTextArea {
 
 impl Widget for &LineTextArea {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
-        let line = if self.buf.len() > 0 {
+        let line = if !self.buf.is_empty() {
             let before = self
                 .buf
                 .get(0..self.pos)
                 .expect("Line Text Area: Failed to get slice before pointer.");
-            let cursor = match self.buf.get(self.pos..self.pos + 1) {
-                Some(cursor) => cursor,
-                None => " ",
-            };
+            let cursor = self.buf.get(self.pos..self.pos + 1).unwrap_or(" ");
             let after = if self.pos != self.buf.len() {
                 self.buf
                     .get(self.pos + 1..self.buf.len())
