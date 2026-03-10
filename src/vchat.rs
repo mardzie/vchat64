@@ -10,7 +10,6 @@ use crossbeam::channel::{Receiver, RecvTimeoutError, Sender};
 use crate::{
     TIMEOUT,
     audio::{Audio, InputMessage},
-    helpers::should_exit,
     traits::{SampleFormatCenter, SampleFormatConversion},
     types::{ArcMutex, ArcRwLock},
     udp_packet_net::MAX_PAYLOAD_SIZE,
@@ -46,7 +45,6 @@ impl VChat {
 
         let voice_net_c = voice_net.clone();
         let addresses_c = addresses.clone();
-        let exit_c = exit.clone();
         let output_sample_format = audio.output_sample_format();
         let udp_bridge_handle = thread::spawn(move || {
             Self::udp_bridge(
@@ -55,7 +53,6 @@ impl VChat {
                 consumer,
                 speaker_input_tx,
                 output_sample_format,
-                exit_c,
             )
         });
 
@@ -81,16 +78,10 @@ impl VChat {
         >,
         output_tx: Sender<Vec<f32>>,
         output_sample_format: cpal::SampleFormat,
-
-        exit: Arc<AtomicBool>,
     ) where
         ringbuf::storage::Heap<T>: SampleFormatCenter,
     {
         loop {
-            if should_exit(&exit) {
-                break;
-            };
-
             if Self::input_udp_bridge(&voice_net, &input_rx, &addresses).is_err() {
                 break;
             };
