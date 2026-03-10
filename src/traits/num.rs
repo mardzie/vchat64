@@ -11,3 +11,7 @@ pub trait NumPartialCmp: PartialEq + PartialOrd + Sized {}
 
 pub trait NumSh: Shl + Shr + Sized {}
 pub trait NumShAssign: ShlAssign + ShrAssign + Sized {}
+
+impl Num for f32 {}
+impl NumAssign for f32 {}
+impl NumPartialCmp for f32 {}

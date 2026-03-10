@@ -9,9 +9,9 @@ use crossbeam::channel::{Receiver, RecvTimeoutError, Sender};
 
 use crate::{
     TIMEOUT,
-    audio::Audio,
+    audio::{Audio, InputMessage},
     helpers::should_exit,
-    traits::SampleFormatConversion,
+    traits::{SampleFormatCenter, SampleFormatConversion},
     types::{ArcMutex, ArcRwLock},
     udp_packet_net::MAX_PAYLOAD_SIZE,
     voice_net::{self, VoiceNet},
@@ -20,7 +20,7 @@ use crate::{
 pub const AUDIO_CHANNELS_BUF_SIZE: usize = 1024 * 16;
 
 pub struct VChat {
-    audio: Audio,
+    audio: Audio<f32, f32, f32>,
     voice_net: ArcMutex<VoiceNet>,
     addresses: ArcRwLock<Vec<SocketAddr>>,
 
@@ -28,7 +28,7 @@ pub struct VChat {
 }
 
 impl VChat {
-    pub fn new<A>(addr: A, exit: Arc<AtomicBool>) -> Result<Self>
+    pub fn new<A>(addr: A) -> Result<Self>
     where
         A: ToSocketAddrs,
     {
@@ -36,12 +36,10 @@ impl VChat {
         let (speaker_input_tx, speaker_output_rx) =
             crossbeam::channel::bounded(AUDIO_CHANNELS_BUF_SIZE);
 
-        let exit_c = exit.clone();
-        let audio = Audio::new(mic_input_tx, speaker_output_rx, u8::MAX, 50, exit_c);
+        let (audio, consumer) = Audio::<T, f32, f32>::new(speaker_output_rx, u8::MAX);
 
-        let exit_c = exit.clone();
         let voice_net = Arc::new(Mutex::new(
-            VoiceNet::new(addr, exit_c).expect("Failed to create VoiceNet."),
+            VoiceNet::new(addr).expect("Failed to create VoiceNet."),
         ));
 
         let addresses = Arc::new(RwLock::new(Vec::with_capacity(8)));
@@ -54,7 +52,7 @@ impl VChat {
             Self::udp_bridge(
                 voice_net_c,
                 addresses_c,
-                mic_output_rx,
+                consumer,
                 speaker_input_tx,
                 output_sample_format,
                 exit_c,
@@ -72,16 +70,22 @@ impl VChat {
         })
     }
 
-    fn udp_bridge(
+    fn udp_bridge<T>(
         voice_net: ArcMutex<VoiceNet>,
         addresses: ArcRwLock<Vec<SocketAddr>>,
 
-        input_rx: Receiver<Vec<f32>>,
+        input_rx: ringbuf::wrap::caching::Caching<
+            Arc<ringbuf::HeapRb<ringbuf::storage::Heap<T>>>,
+            false,
+            true,
+        >,
         output_tx: Sender<Vec<f32>>,
         output_sample_format: cpal::SampleFormat,
 
         exit: Arc<AtomicBool>,
-    ) {
+    ) where
+        ringbuf::storage::Heap<T>: SampleFormatCenter,
+    {
         loop {
             if should_exit(&exit) {
                 break;
@@ -101,11 +105,12 @@ impl VChat {
 
     fn input_udp_bridge(
         voice_net: &ArcMutex<VoiceNet>,
-        input_rx: &Receiver<Vec<f32>>,
+        input_rx: &Receiver<InputMessage<f32>>,
         addresses: &ArcRwLock<Vec<SocketAddr>>,
     ) -> Result<(), ()> {
         let data = match input_rx.recv_timeout(TIMEOUT) {
-            Ok(data) => data,
+            Ok(InputMessage::Samples(data)) => data,
+            Ok(InputMessage::Exit) => return Err(()),
             Err(e) => {
                 if let RecvTimeoutError::Timeout = e {
                     return Ok(());
@@ -229,8 +234,16 @@ impl VChat {
         &self.addresses
     }
 
-    pub fn remove_address(&self, addr: SocketAddr) {
-        todo!()
+    pub fn remove_address(&self, addr: &SocketAddr) -> Option<SocketAddr> {
+        let mut lock = self
+            .addresses
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        let idx = lock
+            .iter()
+            .position(|internal_addr| addr == internal_addr)?;
+        Some(lock.remove(idx))
     }
 
     #[inline]
@@ -242,7 +255,7 @@ impl VChat {
     }
 
     #[inline]
-    pub fn audio(&self) -> &Audio {
+    pub fn audio(&self) -> &Audio<f32, f32, f32> {
         &self.audio
     }
 
@@ -252,8 +265,6 @@ impl VChat {
     }
 
     pub fn stop(self) {
-        self.audio.stop();
-
         let _ = self.udp_bridge_handle.join();
     }
 }

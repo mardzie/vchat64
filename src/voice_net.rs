@@ -2,7 +2,7 @@ use std::{
     collections::VecDeque,
     io,
     net::{SocketAddr, ToSocketAddrs},
-    sync::{Arc, Mutex, atomic::AtomicBool},
+    sync::{Arc, Mutex},
 };
 
 use crate::{
@@ -22,13 +22,12 @@ pub struct VoiceNet {
     current_packet_version: u32,
 
     packet_net: UdpPacketNet,
-    exit: Arc<AtomicBool>,
 
     incoming_packet_buf: ArcMutex<VecDeque<(chrono::DateTime<chrono::Utc>, PacketTuple)>>,
 }
 
 impl VoiceNet {
-    pub fn new<A>(addr: A, exit: Arc<AtomicBool>) -> Result<Self, io::Error>
+    pub fn new<A>(addr: A) -> Result<Self, io::Error>
     where
         A: ToSocketAddrs,
     {
@@ -38,7 +37,6 @@ impl VoiceNet {
         Ok(Self {
             current_packet_version,
             packet_net,
-            exit,
             incoming_packet_buf: Arc::new(Mutex::new(VecDeque::with_capacity(1024))),
         })
     }

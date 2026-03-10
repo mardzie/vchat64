@@ -6,13 +6,19 @@ use std::{
 };
 
 use cpal::{Host, InputCallbackInfo, OutputCallbackInfo, SampleFormat, SizedSample, default_host};
-use crossbeam::channel::{Receiver, Sender, TryIter};
+use crossbeam::channel::{Receiver, TryIter};
+use ringbuf::{
+    SharedRb,
+    storage::Heap,
+    traits::{Producer, Split},
+    wrap::caching::Caching,
+};
 
 use crate::{
     audio::{audio_processor::AudioProcessor, input::InputStream, output::OutputStream},
     traits::{
         SampleFormatCenter, SampleFormatConversion,
-        num::{Num, NumAssign, NumCmp, NumPartialCmp, NumSh, NumShAssign},
+        num::{Num, NumAssign, NumPartialCmp},
     },
 };
 
@@ -24,6 +30,8 @@ pub mod output;
 pub mod sample_format_center_impl;
 pub mod sample_format_conversion_impl;
 
+pub const AUDIO_RING_BUF_CAPACITY: usize = 32768;
+
 pub struct Audio<I, O, F>
 where
     I: SizedSample + SampleFormatCenter + SampleFormatConversion<F> + Copy + Send + Sync + 'static,
@@ -32,9 +40,6 @@ where
         + Num
         + NumAssign
         + Neg
-        + NumSh
-        + NumShAssign
-        + NumCmp
         + NumPartialCmp
         + SizedSample
         + SampleFormatCenter
@@ -65,9 +70,6 @@ where
         + Num
         + NumAssign
         + Neg
-        + NumSh
-        + NumShAssign
-        + NumCmp
         + NumPartialCmp
         + SizedSample
         + SampleFormatCenter
@@ -82,18 +84,18 @@ where
     ///
     /// `output_channel` is the channel that connects to the speaker.
     pub fn new(
-        input_channel: Sender<InputMessage<I>>,
         output_channel: Receiver<Vec<O>>,
-
         init_volume: u8,
-    ) -> Self {
+    ) -> (Self, Caching<Arc<SharedRb<Heap<I>>>, false, true>) {
         let host = default_host();
 
+        let ring_buf = ringbuf::HeapRb::<I>::new(AUDIO_RING_BUF_CAPACITY);
+        let (mut producer, consumer) = ring_buf.split();
         let mut input = InputStream::new(&host).expect("Failed to create new input object.");
         log::info!("Input Stream: Using config: {:?}", input.config());
         input
             .build_stream(
-                move |buf, info| Self::input_data_callback(buf, info, &input_channel),
+                move |buf, info| Self::input_data_callback(buf, info, &mut producer),
                 move |e| log::error!("Input Stream Error: {}", e),
             )
             .expect("Failed to create new input stream.");
@@ -121,39 +123,29 @@ where
         let input_sample_format = input.sample_format();
         let audio_processor = AudioProcessor::<I, O, F>::new(volume_c, input_sample_format);
 
-        Self {
-            host,
-            input,
-            output,
-            audio_processor,
+        (
+            Self {
+                host,
+                input,
+                output,
+                audio_processor,
 
-            volume,
-        }
+                volume,
+            },
+            consumer,
+        )
     }
 
-    #[inline]
+    #[inline(always)]
     fn input_data_callback(
         buf: &[I],
         info: &InputCallbackInfo,
-        input_channel: &Sender<InputMessage<I>>,
+        producer: &mut Caching<Arc<SharedRb<Heap<I>>>, true, false>,
     ) {
-        match input_channel.send(InputMessage::Samples(buf.to_vec())) {
-            Ok(_) => {}
-            Err(e) => {
-                log::warn!(
-                    "Input Device: Receiver closed channel stopping input device: {}",
-                    e
-                )
-            }
-        };
-
-        log::trace!(
-            "Input Data Callback: Got called and read {} bytes",
-            buf.len()
-        );
+        producer.push_slice(buf);
     }
 
-    #[inline]
+    #[inline(always)]
     fn output_data_callback(
         buf: &mut [O],
         info: &OutputCallbackInfo,
@@ -259,7 +251,7 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::<f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::<f32, f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
     }
@@ -275,7 +267,7 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::<f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::<f32, f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
     }
@@ -290,7 +282,7 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::<f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::<f32, f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
         assert_eq!(rx.next().unwrap(), vec![6.0, 7.0]);
@@ -307,7 +299,7 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::<f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::<f32, f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
         assert_eq!(rx.next().unwrap(), vec![6.0, 7.0]);

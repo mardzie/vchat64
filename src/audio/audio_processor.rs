@@ -7,14 +7,14 @@ use std::{
 
 use crate::traits::{
     SampleFormatConversion,
-    num::{Num, NumAssign, NumCmp, NumSh, NumShAssign},
+    num::{Num, NumAssign, NumPartialCmp},
 };
 
 #[derive(Debug)]
 pub struct AudioProcessor<I, O, F>
 where
     I: SampleFormatConversion<F> + Send + Sync + 'static,
-    O: Debug + Display + Num + NumAssign + Neg + NumSh + NumShAssign + NumCmp + Send + 'static,
+    O: Debug + Display + Num + NumAssign + Neg + NumPartialCmp + Send + 'static,
     Vec<O>: Clone + FromIterator<F>,
 {
     volume: Arc<atomic::AtomicU8>,
@@ -29,7 +29,7 @@ where
 impl<I, O, F> AudioProcessor<I, O, F>
 where
     I: SampleFormatConversion<F> + Send + Sync + 'static,
-    O: Debug + Display + Num + NumAssign + Neg + NumSh + NumShAssign + NumCmp + Send + 'static,
+    O: Debug + Display + Num + NumAssign + Neg + NumPartialCmp + Send + 'static,
     Vec<O>: Clone + FromIterator<F>,
 {
     pub fn new(volume: Arc<atomic::AtomicU8>, input_sample_format: cpal::SampleFormat) -> Self {
