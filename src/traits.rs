@@ -1,3 +1,5 @@
+pub mod num;
+
 pub trait SampleFormatConversion<T> {
     /// Converts a sample `self` into `T`.
     ///

@@ -1,5 +1,7 @@
 use std::{
+    fmt::{Debug, Display},
     iter::Peekable,
+    ops::Neg,
     sync::{Arc, atomic},
 };
 
@@ -8,8 +10,10 @@ use crossbeam::channel::{Receiver, Sender, TryIter};
 
 use crate::{
     audio::{audio_processor::AudioProcessor, input::InputStream, output::OutputStream},
-    traits::{SampleFormatCenter, SampleFormatConversion},
-    vchat::AUDIO_CHANNELS_BUF_SIZE,
+    traits::{
+        SampleFormatCenter, SampleFormatConversion,
+        num::{Num, NumAssign, NumCmp, NumPartialCmp, NumSh, NumShAssign},
+    },
 };
 
 pub mod audio_processor;
@@ -20,11 +24,29 @@ pub mod output;
 pub mod sample_format_center_impl;
 pub mod sample_format_conversion_impl;
 
-pub struct Audio<I, O> {
+pub struct Audio<I, O, F>
+where
+    I: SizedSample + SampleFormatCenter + SampleFormatConversion<F> + Copy + Send + Sync + 'static,
+    O: Debug
+        + Display
+        + Num
+        + NumAssign
+        + Neg
+        + NumSh
+        + NumShAssign
+        + NumCmp
+        + NumPartialCmp
+        + SizedSample
+        + SampleFormatCenter
+        + Copy
+        + Send
+        + 'static,
+    Vec<O>: FromIterator<F>,
+{
     host: Host,
     input: InputStream,
     output: OutputStream,
-    audio_processor: AudioProcessor<I, O>,
+    audio_processor: AudioProcessor<I, O, F>,
 
     volume: Arc<atomic::AtomicU8>,
 }
@@ -35,7 +57,25 @@ pub enum InputMessage<T> {
     Exit,
 }
 
-impl<I, O> Audio<I, O> {
+impl<I, O, F> Audio<I, O, F>
+where
+    I: SizedSample + SampleFormatCenter + SampleFormatConversion<F> + Copy + Send + Sync + 'static,
+    O: Debug
+        + Display
+        + Num
+        + NumAssign
+        + Neg
+        + NumSh
+        + NumShAssign
+        + NumCmp
+        + NumPartialCmp
+        + SizedSample
+        + SampleFormatCenter
+        + Copy
+        + Send
+        + 'static,
+    Vec<O>: FromIterator<F>,
+{
     /// Creates a new [`Audio`] instance.
     ///
     /// `input_channel` is the channel where the microphone data gets sent after processing.
@@ -46,24 +86,14 @@ impl<I, O> Audio<I, O> {
         output_channel: Receiver<Vec<O>>,
 
         init_volume: u8,
-    ) -> (Self, Sender<InputMessage<I>>)
-    where
-        I: SizedSample + SampleFormatCenter + SampleFormatConversion<f32> + Send + Sync + 'static,
-        O: SizedSample + SampleFormatCenter + Copy + Send + 'static,
-        Vec<O>: FromIterator<f32>,
-    {
+    ) -> Self {
         let host = default_host();
 
-        let (input_tx_to_audio_processor, audio_processor_rx) =
-            crossbeam::channel::bounded(AUDIO_CHANNELS_BUF_SIZE);
         let mut input = InputStream::new(&host).expect("Failed to create new input object.");
         log::info!("Input Stream: Using config: {:?}", input.config());
-        let input_tx_to_audio_processor_c = input_tx_to_audio_processor.clone();
         input
             .build_stream(
-                move |buf, info| {
-                    Self::input_data_callback(buf, info, &input_tx_to_audio_processor_c)
-                },
+                move |buf, info| Self::input_data_callback(buf, info, &input_channel),
                 move |e| log::error!("Input Stream Error: {}", e),
             )
             .expect("Failed to create new input stream.");
@@ -89,19 +119,16 @@ impl<I, O> Audio<I, O> {
 
         let volume_c = volume.clone();
         let input_sample_format = input.sample_format();
-        let audio_processor = AudioProcessor::<I, O>::new(volume_c, input_sample_format);
+        let audio_processor = AudioProcessor::<I, O, F>::new(volume_c, input_sample_format);
 
-        (
-            Self {
-                host,
-                input,
-                output,
-                audio_processor,
+        Self {
+            host,
+            input,
+            output,
+            audio_processor,
 
-                volume,
-            },
-            input_tx_to_audio_processor,
-        )
+            volume,
+        }
     }
 
     #[inline]
@@ -109,9 +136,7 @@ impl<I, O> Audio<I, O> {
         buf: &[I],
         info: &InputCallbackInfo,
         input_channel: &Sender<InputMessage<I>>,
-    ) where
-        I: SizedSample + Copy,
-    {
+    ) {
         match input_channel.send(InputMessage::Samples(buf.to_vec())) {
             Ok(_) => {}
             Err(e) => {
@@ -134,9 +159,7 @@ impl<I, O> Audio<I, O> {
         info: &OutputCallbackInfo,
         output_channel: &mut Peekable<TryIter<Vec<O>>>,
         sample_format: SampleFormat,
-    ) where
-        O: Copy + SampleFormatCenter,
-    {
+    ) {
         let buf_len = buf.len();
         let mut buf_used = 0;
 
