@@ -11,11 +11,11 @@ use crate::traits::{
 };
 
 #[derive(Debug)]
-pub struct AudioProcessor<I, O, F>
+pub struct AudioProcessor<I, O>
 where
-    I: SampleFormatConversion<F> + Send + Sync + 'static,
+    I: SampleFormatConversion<O> + Send + Sync + 'static,
     O: Debug + Display + Num + NumAssign + Neg + NumPartialCmp + Send + 'static,
-    Vec<O>: Clone + FromIterator<F>,
+    Vec<O>: Clone + FromIterator<O>,
 {
     volume: Arc<atomic::AtomicU8>,
 
@@ -23,14 +23,13 @@ where
 
     _phantom_data_in: PhantomData<I>,
     _phantom_data_out: PhantomData<O>,
-    _phantom_data_format: PhantomData<F>,
 }
 
-impl<I, O, F> AudioProcessor<I, O, F>
+impl<I, O> AudioProcessor<I, O>
 where
-    I: SampleFormatConversion<F> + Send + Sync + 'static,
+    I: SampleFormatConversion<O> + Send + Sync + 'static,
     O: Debug + Display + Num + NumAssign + Neg + NumPartialCmp + Send + 'static,
-    Vec<O>: Clone + FromIterator<F>,
+    Vec<O>: Clone + FromIterator<I>,
 {
     pub fn new(volume: Arc<atomic::AtomicU8>, input_sample_format: cpal::SampleFormat) -> Self {
         Self {
@@ -40,7 +39,6 @@ where
 
             _phantom_data_in: PhantomData,
             _phantom_data_out: PhantomData,
-            _phantom_data_format: PhantomData,
         }
     }
 
