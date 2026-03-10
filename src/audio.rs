@@ -137,28 +137,32 @@ where
     }
 
     #[inline(always)]
-    fn input_data_callback(
-        buf: &[I],
+    fn input_data_callback<T>(
+        buf: &[T],
         info: &InputCallbackInfo,
-        producer: &mut Caching<Arc<SharedRb<Heap<I>>>, true, false>,
-    ) {
+        producer: &mut Caching<Arc<SharedRb<Heap<T>>>, true, false>,
+    ) where
+        T: Copy,
+    {
         producer.push_slice(buf);
     }
 
     #[inline(always)]
-    fn output_data_callback(
-        buf: &mut [O],
+    fn output_data_callback<T>(
+        buf: &mut [T],
         info: &OutputCallbackInfo,
-        output_channel: &mut Peekable<TryIter<Vec<O>>>,
+        output_channel: &mut Peekable<TryIter<Vec<T>>>,
         sample_format: SampleFormat,
-    ) {
+    ) where
+        T: Clone + Copy + SampleFormatCenter,
+    {
         let buf_len = buf.len();
         let mut buf_used = 0;
 
         Self::try_fill_buf(output_channel, buf, &mut buf_used, buf_len);
 
         // Fill remaining with silence.
-        buf[buf_used..buf_len].fill(O::center_point(Some(sample_format)));
+        buf[buf_used..buf_len].fill(T::center_point(Some(sample_format)));
     }
 
     /// Tries to fill remaining `buf` space from `output_channel`.

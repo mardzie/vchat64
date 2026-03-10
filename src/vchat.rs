@@ -19,7 +19,7 @@ use crate::{
 pub const AUDIO_CHANNELS_BUF_SIZE: usize = 1024 * 16;
 
 pub struct VChat {
-    audio: Audio<f32, f32, f32>,
+    audio: Audio<f32, f32>,
     voice_net: ArcMutex<VoiceNet>,
     addresses: ArcRwLock<Vec<SocketAddr>>,
 
