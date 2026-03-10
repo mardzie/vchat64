@@ -32,9 +32,9 @@ pub mod sample_format_conversion_impl;
 
 pub const AUDIO_RING_BUF_CAPACITY: usize = 32768;
 
-pub struct Audio<I, O, F>
+pub struct Audio<I, O>
 where
-    I: SizedSample + SampleFormatCenter + SampleFormatConversion<F> + Copy + Send + Sync + 'static,
+    I: SizedSample + SampleFormatCenter + SampleFormatConversion<O> + Copy + Send + Sync + 'static,
     O: Debug
         + Display
         + Num
@@ -46,12 +46,12 @@ where
         + Copy
         + Send
         + 'static,
-    Vec<O>: FromIterator<F>,
+    Vec<O>: FromIterator<I>,
 {
     host: Host,
     input: InputStream,
     output: OutputStream,
-    audio_processor: AudioProcessor<I, O, F>,
+    audio_processor: AudioProcessor<I, O>,
 
     volume: Arc<atomic::AtomicU8>,
 }
@@ -62,9 +62,9 @@ pub enum InputMessage<T> {
     Exit,
 }
 
-impl<I, O, F> Audio<I, O, F>
+impl<I, O> Audio<I, O>
 where
-    I: SizedSample + SampleFormatCenter + SampleFormatConversion<F> + Copy + Send + Sync + 'static,
+    I: SizedSample + SampleFormatCenter + SampleFormatConversion<O> + Copy + Send + Sync + 'static,
     O: Debug
         + Display
         + Num
@@ -76,7 +76,7 @@ where
         + Copy
         + Send
         + 'static,
-    Vec<O>: FromIterator<F>,
+    Vec<O>: FromIterator<I>,
 {
     /// Creates a new [`Audio`] instance.
     ///
@@ -121,7 +121,7 @@ where
 
         let volume_c = volume.clone();
         let input_sample_format = input.sample_format();
-        let audio_processor = AudioProcessor::<I, O, F>::new(volume_c, input_sample_format);
+        let audio_processor = AudioProcessor::new(volume_c, input_sample_format);
 
         (
             Self {
@@ -251,7 +251,7 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::<f32, f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::<f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
     }
@@ -267,7 +267,7 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::<f32, f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::<f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
     }
@@ -282,7 +282,7 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::<f32, f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::<f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
         assert_eq!(rx.next().unwrap(), vec![6.0, 7.0]);
@@ -299,7 +299,7 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::<f32, f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::<f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
         assert_eq!(rx.next().unwrap(), vec![6.0, 7.0]);
