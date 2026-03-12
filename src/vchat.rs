@@ -1,16 +1,16 @@
 use std::{
     net::{SocketAddr, ToSocketAddrs},
-    sync::{Arc, Mutex, RwLock, atomic::AtomicBool},
+    sync::{Arc, Mutex, RwLock},
     thread::{self, JoinHandle},
 };
 
 use color_eyre::eyre::Result;
-use crossbeam::channel::{Receiver, RecvTimeoutError, Sender};
+use crossbeam::channel::{Receiver, Sender};
+use ringbuf::traits::Consumer;
 
 use crate::{
-    TIMEOUT,
     audio::{Audio, InputMessage},
-    traits::{SampleFormatCenter, SampleFormatConversion},
+    traits::SampleFormatConversion,
     types::{ArcMutex, ArcRwLock},
     udp_packet_net::MAX_PAYLOAD_SIZE,
     voice_net::{self, VoiceNet},
@@ -27,15 +27,17 @@ pub struct VChat {
 }
 
 impl VChat {
-    pub fn new<A>(addr: A) -> Result<Self>
+    pub fn new<A>(addr: A) -> Result<(Self, Sender<InputMessage>)>
     where
         A: ToSocketAddrs,
     {
-        let (mic_input_tx, mic_output_rx) = crossbeam::channel::bounded(AUDIO_CHANNELS_BUF_SIZE);
+        let (input_notify_tx, input_notify_rx) = crossbeam::channel::bounded(128);
         let (speaker_input_tx, speaker_output_rx) =
             crossbeam::channel::bounded(AUDIO_CHANNELS_BUF_SIZE);
 
-        let (audio, consumer) = Audio::<T, f32, f32>::new(speaker_output_rx, u8::MAX);
+        let input_notify_tx_c = input_notify_tx.clone();
+        let (audio, consumer) =
+            Audio::<f32, f32>::new(input_notify_tx_c, speaker_output_rx, u8::MAX);
 
         let voice_net = Arc::new(Mutex::new(
             VoiceNet::new(addr).expect("Failed to create VoiceNet."),
@@ -50,6 +52,7 @@ impl VChat {
             Self::udp_bridge(
                 voice_net_c,
                 addresses_c,
+                input_notify_rx,
                 consumer,
                 speaker_input_tx,
                 output_sample_format,
@@ -58,31 +61,35 @@ impl VChat {
 
         audio.play();
 
-        Ok(Self {
-            audio,
-            voice_net,
-            addresses,
+        Ok((
+            Self {
+                audio,
+                voice_net,
+                addresses,
 
-            udp_bridge_handle,
-        })
+                udp_bridge_handle,
+            },
+            input_notify_tx,
+        ))
     }
 
-    fn udp_bridge<T>(
+    fn udp_bridge(
         voice_net: ArcMutex<VoiceNet>,
         addresses: ArcRwLock<Vec<SocketAddr>>,
 
-        input_rx: ringbuf::wrap::caching::Caching<
-            Arc<ringbuf::HeapRb<ringbuf::storage::Heap<T>>>,
+        input_notify: Receiver<InputMessage>,
+        mut input_ringbuf: ringbuf::wrap::caching::Caching<
+            Arc<ringbuf::SharedRb<ringbuf::storage::Heap<f32>>>,
             false,
             true,
         >,
         output_tx: Sender<Vec<f32>>,
         output_sample_format: cpal::SampleFormat,
-    ) where
-        ringbuf::storage::Heap<T>: SampleFormatCenter,
-    {
+    ) {
         loop {
-            if Self::input_udp_bridge(&voice_net, &input_rx, &addresses).is_err() {
+            if Self::input_udp_bridge(&voice_net, &input_notify, &mut input_ringbuf, &addresses)
+                .is_err()
+            {
                 break;
             };
 
@@ -96,20 +103,25 @@ impl VChat {
 
     fn input_udp_bridge(
         voice_net: &ArcMutex<VoiceNet>,
-        input_rx: &Receiver<InputMessage<f32>>,
+        input_notify: &Receiver<InputMessage>,
+        input_ringbuf: &mut ringbuf::wrap::caching::Caching<
+            Arc<ringbuf::SharedRb<ringbuf::storage::Heap<f32>>>,
+            false,
+            true,
+        >,
         addresses: &ArcRwLock<Vec<SocketAddr>>,
     ) -> Result<(), ()> {
-        let data = match input_rx.recv_timeout(TIMEOUT) {
-            Ok(InputMessage::Samples(data)) => data,
+        let len = match input_notify.try_recv() {
+            Ok(InputMessage::Samples(len)) => len,
+            Err(crossbeam::channel::TryRecvError::Empty) => return Ok(()),
             Ok(InputMessage::Exit) => return Err(()),
-            Err(e) => {
-                if let RecvTimeoutError::Timeout = e {
-                    return Ok(());
-                } else {
-                    log::warn!("Input UDP Bridge: Input stream closed: {}", e);
-                    return Err(());
-                }
-            }
+            Err(crossbeam::channel::TryRecvError::Disconnected) => return Err(()),
+        };
+
+        let mut data = Vec::with_capacity(len);
+        let read_len = input_ringbuf.pop_slice(&mut data);
+        if len != read_len {
+            log::warn!("Input UDP Bridge: Failed to pop announced number of bytes from ringbuf.");
         };
 
         // Convert into bytes and split up into packets.
@@ -246,7 +258,7 @@ impl VChat {
     }
 
     #[inline]
-    pub fn audio(&self) -> &Audio<f32, f32, f32> {
+    pub fn audio(&self) -> &Audio<f32, f32> {
         &self.audio
     }
 

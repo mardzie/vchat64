@@ -24,6 +24,7 @@ pub mod widgets;
 use crate::{
     CHILL_TIMEOUT,
     app::{app_events::Event, config::Config, widgets::line_text_area::LineTextArea},
+    audio::InputMessage,
     helpers::should_exit,
     state::AppState,
     vchat::VChat,
@@ -34,6 +35,7 @@ pub const KEY_CODE_DECLINE: KeyCode = KeyCode::Esc;
 
 pub struct App {
     exit: Arc<AtomicBool>,
+    exit_notify: crossbeam::channel::Sender<InputMessage>,
     error_msg: (String, chrono::DateTime<chrono::Utc>),
     config: Config,
     event_channel_tx: sync::mpsc::SyncSender<Event>,
@@ -72,15 +74,18 @@ impl App {
             .build()
             .expect("Failed to build tokio runtime!");
 
+        let (vchat, exit_notify) = VChat::new("0.0.0.-1:22000").unwrap();
+
         Self {
-            exit: exit.clone(),
+            exit,
+            exit_notify,
             error_msg: (String::new(), chrono::DateTime::<chrono::Utc>::MAX_UTC),
             config,
             event_channel_tx: tx,
             event_channel_rx: rx,
             state: Default::default(),
             addr_input: LineTextArea::new("".to_string(), 0),
-            vchat: VChat::new("0.0.0.0:22000", exit).unwrap(),
+            vchat,
 
             event_handle: handle,
 
@@ -99,6 +104,9 @@ impl App {
         }
 
         self.vchat.audio().pause();
+        if let Err(_) = self.exit_notify.send(InputMessage::Exit) {
+            log::warn!("Failed to send exit notification.");
+        };
 
         Ok(())
     }

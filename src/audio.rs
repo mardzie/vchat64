@@ -6,7 +6,7 @@ use std::{
 };
 
 use cpal::{Host, InputCallbackInfo, OutputCallbackInfo, SampleFormat, SizedSample, default_host};
-use crossbeam::channel::{Receiver, TryIter};
+use crossbeam::channel::{Receiver, Sender, TryIter};
 use ringbuf::{
     SharedRb,
     storage::Heap,
@@ -30,7 +30,7 @@ pub mod output;
 pub mod sample_format_center_impl;
 pub mod sample_format_conversion_impl;
 
-pub const AUDIO_RING_BUF_CAPACITY: usize = 32768;
+pub const AUDIO_RING_BUF_CAPACITY: usize = 1024 * 64;
 
 pub struct Audio<I, O>
 where
@@ -57,8 +57,8 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
-pub enum InputMessage<T> {
-    Samples(Vec<T>),
+pub enum InputMessage {
+    Samples(usize),
     Exit,
 }
 
@@ -84,6 +84,7 @@ where
     ///
     /// `output_channel` is the channel that connects to the speaker.
     pub fn new(
+        input_notify: Sender<InputMessage>,
         output_channel: Receiver<Vec<O>>,
         init_volume: u8,
     ) -> (Self, Caching<Arc<SharedRb<Heap<I>>>, false, true>) {
@@ -95,7 +96,7 @@ where
         log::info!("Input Stream: Using config: {:?}", input.config());
         input
             .build_stream(
-                move |buf, info| Self::input_data_callback(buf, info, &mut producer),
+                move |buf, info| Self::input_data_callback(buf, info, &input_notify, &mut producer),
                 move |e| log::error!("Input Stream Error: {}", e),
             )
             .expect("Failed to create new input stream.");
@@ -140,11 +141,14 @@ where
     fn input_data_callback<T>(
         buf: &[T],
         info: &InputCallbackInfo,
+        input_notify: &Sender<InputMessage>,
         producer: &mut Caching<Arc<SharedRb<Heap<T>>>, true, false>,
     ) where
         T: Copy,
     {
+        let len = buf.len();
         producer.push_slice(buf);
+        let _ = input_notify.try_send(InputMessage::Samples(len));
     }
 
     #[inline(always)]
