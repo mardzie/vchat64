@@ -76,8 +76,12 @@ impl LineTextArea {
         match key_event.kind {
             KeyEventKind::Press => match key_event.code {
                 KeyCode::Char(ch) => {
-                    self.buf.insert(self.pos, ch);
-                    self.pos += 1;
+                    if let Some((idx, _)) =
+                        self.buf.char_indices().find(|(idx, _)| idx == &self.pos)
+                    {
+                        self.buf.insert(idx, ch);
+                        self.pos += 1;
+                    };
                 }
                 KeyCode::Backspace => {
                     if 0 < self.pos {
