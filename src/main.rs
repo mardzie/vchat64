@@ -14,7 +14,6 @@ mod vchat;
 mod voice_net;
 
 use crate::app::App;
-use ratatui::crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 pub const CHILL_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(250);
 pub const TIMEOUT: std::time::Duration = std::time::Duration::from_millis(10);
@@ -29,14 +28,11 @@ fn main() -> Result<()> {
 
     color_eyre::install()?;
 
-    enable_raw_mode()?;
-
     let mut terminal = ratatui::init();
     let mut app = App::new();
     let app_result = app.run(&mut terminal);
     app.stop();
 
-    disable_raw_mode()?;
     if let Err(e) = ratatui::try_restore() {
         eprintln!(
             "Failed to restore terminal. Run `reset` or restart your terminal to recover: {}",
