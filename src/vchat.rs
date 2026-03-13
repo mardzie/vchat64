@@ -23,19 +23,20 @@ pub struct VChat {
     voice_net: ArcMutex<VoiceNet>,
     addresses: ArcRwLock<Vec<SocketAddr>>,
 
+    exit_notify: crossbeam::channel::Sender<InputMessage>,
     udp_bridge_handle: JoinHandle<()>,
 }
 
 impl VChat {
-    pub fn new<A>(addr: A) -> Result<(Self, Sender<InputMessage>)>
+    pub fn new<A>(addr: A) -> Result<Self>
     where
         A: ToSocketAddrs,
     {
-        let (input_notify_tx, input_notify_rx) = crossbeam::channel::bounded(128);
+        let (exit_notify, input_notify_rx) = crossbeam::channel::bounded(128);
         let (speaker_input_tx, speaker_output_rx) =
             crossbeam::channel::bounded(AUDIO_CHANNELS_BUF_SIZE);
 
-        let input_notify_tx_c = input_notify_tx.clone();
+        let input_notify_tx_c = exit_notify.clone();
         let (audio, consumer) =
             Audio::<f32, f32>::new(input_notify_tx_c, speaker_output_rx, u8::MAX);
 
@@ -61,16 +62,14 @@ impl VChat {
 
         audio.play();
 
-        Ok((
-            Self {
-                audio,
-                voice_net,
-                addresses,
+        Ok(Self {
+            audio,
+            voice_net,
+            addresses,
 
-                udp_bridge_handle,
-            },
-            input_notify_tx,
-        ))
+            exit_notify,
+            udp_bridge_handle,
+        })
     }
 
     fn udp_bridge(
@@ -268,6 +267,10 @@ impl VChat {
     }
 
     pub fn stop(self) {
+        if let Err(e) = self.exit_notify.send(InputMessage::Exit) {
+            log::error!("Failed to send exit notification to audio thread: {}", e);
+        };
+
         let _ = self.udp_bridge_handle.join();
     }
 }

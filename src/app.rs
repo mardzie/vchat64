@@ -24,7 +24,6 @@ pub mod widgets;
 use crate::{
     CHILL_TIMEOUT,
     app::{app_events::Event, config::Config, widgets::line_text_area::LineTextArea},
-    audio::InputMessage,
     helpers::should_exit,
     state::AppState,
     vchat::VChat,
@@ -35,8 +34,7 @@ pub const KEY_CODE_DECLINE: KeyCode = KeyCode::Esc;
 
 pub struct App {
     exit: Arc<AtomicBool>,
-    exit_notify: crossbeam::channel::Sender<InputMessage>,
-    error_msg: (String, chrono::DateTime<chrono::Utc>),
+    error_msg: Option<(String, chrono::DateTime<chrono::Utc>)>,
     config: Config,
     event_channel_tx: sync::mpsc::SyncSender<Event>,
     event_channel_rx: sync::mpsc::Receiver<Event>,
@@ -74,7 +72,7 @@ impl App {
             .build()
             .expect("Failed to build tokio runtime!");
 
-        let (vchat, exit_notify) = VChat::new(SocketAddr::new(
+        let vchat = VChat::new(SocketAddr::new(
             std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
             config.port(),
         ))
@@ -82,8 +80,7 @@ impl App {
 
         Self {
             exit,
-            exit_notify,
-            error_msg: (String::new(), chrono::DateTime::<chrono::Utc>::MAX_UTC),
+            error_msg: Some((String::new(), chrono::DateTime::<chrono::Utc>::MAX_UTC)),
             config,
             event_channel_tx: tx,
             event_channel_rx: rx,
@@ -108,9 +105,6 @@ impl App {
         }
 
         self.vchat.audio().pause();
-        if let Err(_) = self.exit_notify.send(InputMessage::Exit) {
-            log::warn!("Failed to send exit notification.");
-        };
 
         Ok(())
     }
@@ -156,7 +150,7 @@ impl App {
     }
 
     fn set_error(&mut self, s: String) {
-        self.error_msg = (s, chrono::Utc::now());
+        self.error_msg = Some((s, chrono::Utc::now()));
     }
 
     fn to_app_state(&mut self) {
@@ -299,14 +293,12 @@ impl App {
             AppState::Exit => self.handle_exit_event(&event)?,
         };
 
-        let max_timestamp = chrono::DateTime::<chrono::Utc>::MAX_UTC;
-        let (err, timestamp) = &self.error_msg;
-        if timestamp != &max_timestamp
+        if let Some((err, timestamp)) = &self.error_msg
             && *timestamp
                 + chrono::Duration::seconds((2 * err.split_ascii_whitespace().count()) as i64)
                 < chrono::Utc::now()
         {
-            self.error_msg = (String::new(), max_timestamp);
+            self.error_msg = None;
         };
 
         Ok(())
@@ -472,7 +464,11 @@ impl App {
             .border_type(BorderType::Plain);
         block.render(block_area, buf);
 
-        let line = Line::from(self.error_msg.0.clone()).on_red().white();
+        let line = if let Some((e, _)) = &self.error_msg {
+            Line::from(e.as_ref()).on_red().white()
+        } else {
+            Line::from("")
+        };
         line.render(error_area, buf);
     }
 
