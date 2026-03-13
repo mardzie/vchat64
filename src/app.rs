@@ -74,7 +74,11 @@ impl App {
             .build()
             .expect("Failed to build tokio runtime!");
 
-        let (vchat, exit_notify) = VChat::new("0.0.0.-1:22000").unwrap();
+        let (vchat, exit_notify) = VChat::new(SocketAddr::new(
+            std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
+            config.port(),
+        ))
+        .unwrap();
 
         Self {
             exit,
