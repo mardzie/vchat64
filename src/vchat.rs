@@ -9,7 +9,7 @@ use crossbeam::channel::{Receiver, Sender};
 use ringbuf::traits::{Consumer, Observer};
 
 use crate::{
-    audio::{Audio, InputMessage, traits::SampleFormatConversion},
+    audio::{Audio, InputMessage, audio_processor::AudioProcessor, traits::SampleFormatConversion},
     types::{ArcMutex, ArcRwLock},
     udp_packet_net::MAX_PAYLOAD_SIZE,
     voice_net::{self, VoiceNet},
@@ -20,7 +20,7 @@ pub const AUDIO_CHANNELS_BUF_SIZE: usize = 1024 * 16;
 pub type OutputType = f32;
 
 pub struct VChat {
-    audio: Audio<f32, OutputType>,
+    audio: Arc<Audio<f32, OutputType>>, // TODO: Input Type
     voice_net: ArcMutex<VoiceNet>,
     addresses: ArcRwLock<Vec<SocketAddr>>,
 
@@ -39,7 +39,8 @@ impl VChat {
 
         let input_notify_tx_c = exit_notify.clone();
         let (audio, consumer) =
-            Audio::<f32, f32>::new(input_notify_tx_c, speaker_output_rx, u8::MAX);
+            Audio::<f32, OutputType>::new(input_notify_tx_c, speaker_output_rx, u8::MAX);
+        let audio = Arc::new(audio);
 
         let voice_net = Arc::new(Mutex::new(
             VoiceNet::new(addr).expect("Failed to create VoiceNet."),
@@ -47,9 +48,9 @@ impl VChat {
 
         let addresses = Arc::new(RwLock::new(Vec::with_capacity(8)));
 
+        let audio_c = audio.clone();
         let voice_net_c = voice_net.clone();
         let addresses_c = addresses.clone();
-        let output_sample_format = audio.output_sample_format();
         let udp_bridge_handle = thread::spawn(move || {
             Self::udp_bridge(
                 voice_net_c,
@@ -57,6 +58,7 @@ impl VChat {
                 input_notify_rx,
                 consumer,
                 speaker_input_tx,
+                audio_c,
                 output_sample_format,
             )
         });
@@ -84,10 +86,13 @@ impl VChat {
             true,
         >,
         output_tx: Sender<Vec<f32>>,
-        output_sample_format: cpal::SampleFormat,
+        audio: Arc<Audio<f32, OutputType>>,
     ) where
         T: Copy,
     {
+        let output_sample_format = audio.output_sample_format();
+        let audio_processor = audio.audio_processor();
+
         loop {
             if Self::input_udp_bridge(&voice_net, &input_notify, &mut input_ringbuf, &addresses)
                 .is_err()
@@ -105,6 +110,7 @@ impl VChat {
 
     fn input_udp_bridge<T>(
         voice_net: &ArcMutex<VoiceNet>,
+        audio_processor: &Arc<AudioProcessor<f32, OutputType>>,
         input_notify: &Receiver<InputMessage>,
         input_ringbuf: &mut ringbuf::wrap::caching::Caching<
             Arc<ringbuf::SharedRb<ringbuf::storage::Heap<T>>>,
@@ -125,8 +131,8 @@ impl VChat {
 
         let mut data = Vec::with_capacity(input_ringbuf.occupied_len());
         input_ringbuf.pop_slice(&mut data);
-
-        todo!("Process audio");
+        
+        let data = audio_processor.process_audio(data);
 
         // Convert into bytes and split up into packets.
         let byte_packets: Vec<Vec<u8>> = data

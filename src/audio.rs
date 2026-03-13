@@ -38,7 +38,7 @@ where
     host: Host,
     input: InputStream,
     output: OutputStream,
-    audio_processor: AudioProcessor<I, O>,
+    audio_processor: Arc<AudioProcessor<I, O>>,
 
     volume: Arc<atomic::AtomicU8>,
 }
@@ -99,7 +99,7 @@ where
 
         let volume_c = volume.clone();
         let input_sample_format = input.sample_format();
-        let audio_processor = AudioProcessor::new(volume_c, input_sample_format);
+        let audio_processor = Arc::new(AudioProcessor::new(volume_c, input_sample_format));
 
         (
             Self {
@@ -192,6 +192,10 @@ where
 
     pub fn output_sample_format(&self) -> cpal::SampleFormat {
         self.output.sample_format()
+    }
+
+    pub fn audio_processor(&self) -> Arc<AudioProcessor<I, O>> {
+        self.audio_processor.clone()
     }
 
     pub fn play(&self) {
