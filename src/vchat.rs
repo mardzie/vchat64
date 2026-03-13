@@ -6,7 +6,7 @@ use std::{
 
 use color_eyre::eyre::Result;
 use crossbeam::channel::{Receiver, Sender};
-use ringbuf::traits::Consumer;
+use ringbuf::traits::{Consumer, Observer};
 
 use crate::{
     audio::{Audio, InputMessage},
@@ -111,17 +111,16 @@ impl VChat {
         addresses: &ArcRwLock<Vec<SocketAddr>>,
     ) -> Result<(), ()> {
         let len = match input_notify.try_recv() {
-            Ok(InputMessage::Samples(len)) => len,
+            Ok(InputMessage::Samples) => {}
             Err(crossbeam::channel::TryRecvError::Empty) => return Ok(()),
             Ok(InputMessage::Exit) => return Err(()),
             Err(crossbeam::channel::TryRecvError::Disconnected) => return Err(()),
         };
 
-        let mut data = Vec::with_capacity(len);
-        let read_len = input_ringbuf.pop_slice(&mut data);
-        if len != read_len {
-            log::warn!("Input UDP Bridge: Failed to pop announced number of bytes from ringbuf.");
-        };
+        let mut data = Vec::with_capacity(input_ringbuf.occupied_len());
+        input_ringbuf.pop_slice(&mut data);
+
+        todo!("Process audio");
 
         // Convert into bytes and split up into packets.
         let byte_packets: Vec<Vec<u8>> = data

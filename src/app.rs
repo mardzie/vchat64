@@ -187,6 +187,7 @@ impl App {
         Ok(self.get_friend_code_from_ip(ip))
     }
 
+    #[inline]
     fn get_friend_code_from_ip(&self, ip: std::net::IpAddr) -> String {
         let addr = SocketAddr::new(ip, self.config.port());
         Self::ip_to_friend_code(addr)

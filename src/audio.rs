@@ -58,7 +58,7 @@ where
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Hash)]
 pub enum InputMessage {
-    Samples(usize),
+    Samples,
     Exit,
 }
 
@@ -146,9 +146,8 @@ where
     ) where
         T: Copy,
     {
-        let len = buf.len();
         producer.push_slice(buf);
-        let _ = input_notify.try_send(InputMessage::Samples(len));
+        let _ = input_notify.try_send(InputMessage::Samples);
     }
 
     #[inline(always)]
