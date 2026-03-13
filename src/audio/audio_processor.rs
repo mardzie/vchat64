@@ -5,9 +5,9 @@ use std::{
     sync::{Arc, atomic},
 };
 
-use crate::traits::{
-    SampleFormatConversion,
-    num::{Num, NumAssign, NumPartialCmp},
+use crate::{
+    audio::traits::SampleFormatConversion,
+    traits::num::{Num, NumAssign, NumPartialCmp},
 };
 
 #[derive(Debug)]

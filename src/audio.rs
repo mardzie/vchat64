@@ -1,11 +1,10 @@
 use std::{
-    fmt::{Debug, Display},
+    fmt::Debug,
     iter::Peekable,
-    ops::Neg,
     sync::{Arc, atomic},
 };
 
-use cpal::{Host, InputCallbackInfo, OutputCallbackInfo, SampleFormat, SizedSample, default_host};
+use cpal::{Host, InputCallbackInfo, OutputCallbackInfo, SampleFormat, default_host};
 use crossbeam::channel::{Receiver, Sender, TryIter};
 use ringbuf::{
     SharedRb,
@@ -14,12 +13,11 @@ use ringbuf::{
     wrap::caching::Caching,
 };
 
-use crate::{
-    audio::{audio_processor::AudioProcessor, input::InputStream, output::OutputStream},
-    traits::{
-        SampleFormatCenter, SampleFormatConversion,
-        num::{Num, NumAssign, NumPartialCmp},
-    },
+use crate::audio::{
+    audio_processor::AudioProcessor,
+    input::InputStream,
+    output::OutputStream,
+    traits::{AudioInputTrait, AudioOutputTrait, SampleFormatCenter},
 };
 
 pub mod audio_processor;
@@ -27,25 +25,14 @@ pub mod config_filter;
 pub mod error;
 pub mod input;
 pub mod output;
-pub mod sample_format_center_impl;
-pub mod sample_format_conversion_impl;
+pub mod traits;
 
 pub const AUDIO_RING_BUF_CAPACITY: usize = 1024 * 64;
 
 pub struct Audio<I, O>
 where
-    I: SizedSample + SampleFormatCenter + SampleFormatConversion<O> + Copy + Send + Sync + 'static,
-    O: Debug
-        + Display
-        + Num
-        + NumAssign
-        + Neg
-        + NumPartialCmp
-        + SizedSample
-        + SampleFormatCenter
-        + Copy
-        + Send
-        + 'static,
+    I: AudioInputTrait<O>,
+    O: AudioOutputTrait,
     Vec<O>: FromIterator<I>,
 {
     host: Host,
@@ -64,18 +51,8 @@ pub enum InputMessage {
 
 impl<I, O> Audio<I, O>
 where
-    I: SizedSample + SampleFormatCenter + SampleFormatConversion<O> + Copy + Send + Sync + 'static,
-    O: Debug
-        + Display
-        + Num
-        + NumAssign
-        + Neg
-        + NumPartialCmp
-        + SizedSample
-        + SampleFormatCenter
-        + Copy
-        + Send
-        + 'static,
+    I: AudioInputTrait<O>,
+    O: AudioOutputTrait,
     Vec<O>: FromIterator<I>,
 {
     /// Creates a new [`Audio`] instance.

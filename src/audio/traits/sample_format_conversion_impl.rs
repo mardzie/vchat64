@@ -1,4 +1,4 @@
-use crate::traits::SampleFormatConversion;
+use crate::audio::traits::SampleFormatConversion;
 
 impl SampleFormatConversion<Self> for f32 {
     #[inline]
@@ -362,7 +362,7 @@ impl SampleFormatConversion<f32> for i64 {
 mod sample_format_converstion_test {
     use cpal::SampleFormat;
 
-    use crate::traits::SampleFormatConversion;
+    use crate::audio::traits::SampleFormatConversion;
 
     #[test]
     fn f32_test() {

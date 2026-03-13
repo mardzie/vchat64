@@ -9,8 +9,7 @@ use crossbeam::channel::{Receiver, Sender};
 use ringbuf::traits::{Consumer, Observer};
 
 use crate::{
-    audio::{Audio, InputMessage},
-    traits::SampleFormatConversion,
+    audio::{Audio, InputMessage, traits::SampleFormatConversion},
     types::{ArcMutex, ArcRwLock},
     udp_packet_net::MAX_PAYLOAD_SIZE,
     voice_net::{self, VoiceNet},
@@ -18,8 +17,10 @@ use crate::{
 
 pub const AUDIO_CHANNELS_BUF_SIZE: usize = 1024 * 16;
 
+pub type OutputType = f32;
+
 pub struct VChat {
-    audio: Audio<f32, f32>,
+    audio: Audio<f32, OutputType>,
     voice_net: ArcMutex<VoiceNet>,
     addresses: ArcRwLock<Vec<SocketAddr>>,
 
@@ -72,19 +73,21 @@ impl VChat {
         })
     }
 
-    fn udp_bridge(
+    fn udp_bridge<T>(
         voice_net: ArcMutex<VoiceNet>,
         addresses: ArcRwLock<Vec<SocketAddr>>,
 
         input_notify: Receiver<InputMessage>,
         mut input_ringbuf: ringbuf::wrap::caching::Caching<
-            Arc<ringbuf::SharedRb<ringbuf::storage::Heap<f32>>>,
+            Arc<ringbuf::SharedRb<ringbuf::storage::Heap<T>>>,
             false,
             true,
         >,
         output_tx: Sender<Vec<f32>>,
         output_sample_format: cpal::SampleFormat,
-    ) {
+    ) where
+        T: Copy,
+    {
         loop {
             if Self::input_udp_bridge(&voice_net, &input_notify, &mut input_ringbuf, &addresses)
                 .is_err()
@@ -100,16 +103,19 @@ impl VChat {
         log::warn!("UDP Bridge: Closed")
     }
 
-    fn input_udp_bridge(
+    fn input_udp_bridge<T>(
         voice_net: &ArcMutex<VoiceNet>,
         input_notify: &Receiver<InputMessage>,
         input_ringbuf: &mut ringbuf::wrap::caching::Caching<
-            Arc<ringbuf::SharedRb<ringbuf::storage::Heap<f32>>>,
+            Arc<ringbuf::SharedRb<ringbuf::storage::Heap<T>>>,
             false,
             true,
         >,
         addresses: &ArcRwLock<Vec<SocketAddr>>,
-    ) -> Result<(), ()> {
+    ) -> Result<(), ()>
+    where
+        T: Copy,
+    {
         let len = match input_notify.try_recv() {
             Ok(InputMessage::Samples) => {}
             Err(crossbeam::channel::TryRecvError::Empty) => return Ok(()),

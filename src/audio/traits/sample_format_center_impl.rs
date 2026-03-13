@@ -1,4 +1,4 @@
-use crate::traits::SampleFormatCenter;
+use crate::audio::traits::SampleFormatCenter;
 
 impl SampleFormatCenter for f32 {
     fn center_point(_: Option<cpal::SampleFormat>) -> Self {
