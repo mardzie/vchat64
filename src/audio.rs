@@ -17,7 +17,7 @@ use crate::audio::{
     audio_processor::AudioProcessor,
     input::InputStream,
     output::OutputStream,
-    traits::{SampleFormatCenter, SampleFormatConversion},
+    traits::{SampleFormatCenter, SampleFormatConversion, copy_from_iter_impl::CopyFromIterator},
 };
 
 pub mod audio_processor;
@@ -57,13 +57,23 @@ impl Audio {
     ) -> (Self, Caching<Arc<SharedRb<Heap<f32>>>, false, true>) {
         let host = default_host();
 
-        let ring_buf = ringbuf::HeapRb::<I>::new(AUDIO_RING_BUF_CAPACITY);
+        let ring_buf = ringbuf::HeapRb::<f32>::new(AUDIO_RING_BUF_CAPACITY);
         let (mut producer, consumer) = ring_buf.split();
         let mut input = InputStream::new(&host).expect("Failed to create new input object.");
+        let input_sample_format = input.sample_format();
+        let input_sample_format_c = input_sample_format.clone();
         log::info!("Input Stream: Using config: {:?}", input.config());
         input
             .build_stream(
-                move |buf, info| Self::input_data_callback(buf, info, &input_notify, &mut producer),
+                move |buf, info| {
+                    Self::input_data_callback(
+                        buf,
+                        info,
+                        &input_notify,
+                        &mut producer,
+                        &input_sample_format_c,
+                    )
+                },
                 move |e| log::error!("Input Stream Error: {}", e),
             )
             .expect("Failed to create new input stream.");
@@ -78,7 +88,7 @@ impl Audio {
                         buf,
                         info,
                         &mut output_channel.try_iter().peekable(),
-                        output_sample_format,
+                        &output_sample_format,
                     )
                 },
                 move |e| log::error!("Output Stream Error: {}", e),
@@ -88,7 +98,6 @@ impl Audio {
         let volume = Arc::new(atomic::AtomicU8::new(init_volume));
 
         let volume_c = volume.clone();
-        let input_sample_format = input.sample_format();
         let audio_processor = Arc::new(AudioProcessor::new(volume_c, input_sample_format));
 
         (
@@ -156,11 +165,10 @@ impl Audio {
             let sample_len = samples.len();
 
             if sample_len > buf_space {
-                let extracted: Vec<T> = samples
+                let extracted = samples
                     .drain(..buf_space)
-                    .map(|sample| T::from_sample(sample, Some(sample_format)))
-                    .collect();
-                buf[*buf_used..buf_len].copy_from_slice(&extracted);
+                    .map(|sample| T::from_sample(sample, Some(sample_format)));
+                buf[*buf_used..buf_len].copy_from_iter(extracted);
                 *buf_used = buf_len;
                 log::trace!(
                     "Output Data Callback: Filled remaining space with {} of {} samples from new sample",
@@ -173,7 +181,11 @@ impl Audio {
                     .expect("The peeked value was Samples but now it isn't anymore.");
 
                 let new_used = *buf_used + sample_len;
-                buf[*buf_used..new_used].copy_from_slice(&samples);
+                buf[*buf_used..new_used].copy_from_iter(
+                    samples
+                        .into_iter()
+                        .map(|sample| T::from_sample(sample, Some(sample_format))),
+                );
                 *buf_used = new_used;
                 log::trace!(
                     "Output Data Callback: Filled space with {} samples of full extra sample, remaining space {}",
@@ -192,7 +204,7 @@ impl Audio {
         self.output.sample_format()
     }
 
-    pub fn audio_processor(&self) -> Arc<AudioProcessor<I, O>> {
+    pub fn audio_processor(&self) -> Arc<AudioProcessor> {
         self.audio_processor.clone()
     }
 
@@ -237,7 +249,13 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::<f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::try_fill_buf::<f32>(
+            &mut rx,
+            &mut buf,
+            &mut buf_used,
+            buf_len,
+            &cpal::SampleFormat::F32,
+        );
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
     }
@@ -253,7 +271,13 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::<f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::try_fill_buf::<f32>(
+            &mut rx,
+            &mut buf,
+            &mut buf_used,
+            buf_len,
+            &cpal::SampleFormat::F32,
+        );
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
     }
@@ -263,12 +287,19 @@ mod audio_test {
         let (mut buf, tx, rx) = get_setup();
         let mut rx = rx.try_iter().peekable();
 
-        tx.send(vec![2.0, 3.0, 4.0, 5.0, 6.0, 7.0]).unwrap();
+        tx.send(vec![2.0, 3.0, 4.0, 5.<f32, f32>::0, 6.0, 7.0])
+            .unwrap();
 
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::<f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::try_fill_buf::<f32>(
+            &mut rx,
+            &mut buf,
+            &mut buf_used,
+            buf_len,
+            &cpal::SampleFormat::F32,
+        );
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
         assert_eq!(rx.next().unwrap(), vec![6.0, 7.0]);
@@ -285,7 +316,13 @@ mod audio_test {
         let mut buf_used = 2;
         let buf_len = buf.len();
 
-        Audio::<f32, f32>::try_fill_buf::<f32>(&mut rx, &mut buf, &mut buf_used, buf_len);
+        Audio::try_fill_buf::<f32>(
+            &mut rx,
+            &mut buf,
+            &mut buf_used,
+            buf_len,
+            &cpal::SampleFormat::F32,
+        );
 
         assert_eq!(buf, [0.0, 0.0, 2.0, 3.0, 4.0, 5.0]);
         assert_eq!(rx.next().unwrap(), vec![6.0, 7.0]);

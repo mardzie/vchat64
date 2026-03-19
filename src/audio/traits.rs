@@ -1,3 +1,4 @@
+pub mod copy_from_iter_impl;
 pub mod sample_format_center_impl;
 pub mod sample_format_conversion_impl;
 

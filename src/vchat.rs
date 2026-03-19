@@ -17,10 +17,8 @@ use crate::{
 
 pub const AUDIO_CHANNELS_BUF_SIZE: usize = 1024 * 16;
 
-pub type OutputType = f32;
-
 pub struct VChat {
-    audio: Arc<Audio<f32, OutputType>>, // TODO: Input Type
+    audio: Arc<Audio>, // TODO: Input Type
     voice_net: ArcMutex<VoiceNet>,
     addresses: ArcRwLock<Vec<SocketAddr>>,
 
@@ -38,8 +36,7 @@ impl VChat {
             crossbeam::channel::bounded(AUDIO_CHANNELS_BUF_SIZE);
 
         let input_notify_tx_c = exit_notify.clone();
-        let (audio, consumer) =
-            Audio::<f32, OutputType>::new(input_notify_tx_c, speaker_output_rx, u8::MAX);
+        let (audio, consumer) = Audio::new(input_notify_tx_c, speaker_output_rx, u8::MAX);
         let audio = Arc::new(audio);
 
         let voice_net = Arc::new(Mutex::new(
@@ -81,12 +78,12 @@ impl VChat {
 
         input_notify: Receiver<InputMessage>,
         mut input_ringbuf: ringbuf::wrap::caching::Caching<
-            Arc<ringbuf::SharedRb<ringbuf::storage::Heap<T>>>,
+            Arc<ringbuf::SharedRb<ringbuf::storage::Heap<f32>>>,
             false,
             true,
         >,
         output_tx: Sender<Vec<f32>>,
-        audio: Arc<Audio<f32, OutputType>>,
+        audio: Arc<Audio>,
     ) where
         T: Copy,
     {
@@ -94,8 +91,14 @@ impl VChat {
         let audio_processor = audio.audio_processor();
 
         loop {
-            if Self::input_udp_bridge(&voice_net, &input_notify, &mut input_ringbuf, &addresses)
-                .is_err()
+            if Self::input_udp_bridge(
+                &voice_net,
+                &audio_processor,
+                &input_notify,
+                &mut input_ringbuf,
+                &addresses,
+            )
+            .is_err()
             {
                 break;
             };
@@ -108,21 +111,18 @@ impl VChat {
         log::warn!("UDP Bridge: Closed")
     }
 
-    fn input_udp_bridge<T>(
+    fn input_udp_bridge(
         voice_net: &ArcMutex<VoiceNet>,
-        audio_processor: &Arc<AudioProcessor<f32, OutputType>>,
+        audio_processor: &Arc<AudioProcessor>,
         input_notify: &Receiver<InputMessage>,
         input_ringbuf: &mut ringbuf::wrap::caching::Caching<
-            Arc<ringbuf::SharedRb<ringbuf::storage::Heap<T>>>,
+            Arc<ringbuf::SharedRb<ringbuf::storage::Heap<f32>>>,
             false,
             true,
         >,
         addresses: &ArcRwLock<Vec<SocketAddr>>,
-    ) -> Result<(), ()>
-    where
-        T: Copy,
-    {
-        let len = match input_notify.try_recv() {
+    ) -> Result<(), ()> {
+        match input_notify.try_recv() {
             Ok(InputMessage::Samples) => {}
             Err(crossbeam::channel::TryRecvError::Empty) => return Ok(()),
             Ok(InputMessage::Exit) => return Err(()),
@@ -131,7 +131,7 @@ impl VChat {
 
         let mut data = Vec::with_capacity(input_ringbuf.occupied_len());
         input_ringbuf.pop_slice(&mut data);
-        
+
         let data = audio_processor.process_audio(data);
 
         // Convert into bytes and split up into packets.
@@ -218,7 +218,7 @@ impl VChat {
             .map(f32::from_be_bytes)
             .collect();
 
-        let samples = T::from_sample_buf(data, Some(*output_sample_format)).collect();
+        let samples = T::from_sample_buf(data, Some(output_sample_format)).collect();
 
         match output_tx.send(samples) {
             Ok(_) => {}
@@ -268,7 +268,7 @@ impl VChat {
     }
 
     #[inline]
-    pub fn audio(&self) -> &Audio<f32, f32> {
+    pub fn audio(&self) -> &Audio {
         &self.audio
     }
 
