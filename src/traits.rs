@@ -5,3 +5,7 @@ pub trait InPlaceEndiannessConversion {
 
     fn to_le(&mut self);
 }
+
+pub trait CopyFromIterator<T> {
+    fn copy_from_iter<I: IntoIterator<Item = T>>(&mut self, iter: I);
+}

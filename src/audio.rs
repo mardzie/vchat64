@@ -17,7 +17,7 @@ use crate::audio::{
     audio_processor::AudioProcessor,
     input::InputStream,
     output::OutputStream,
-    traits::{AudioInputTrait, AudioOutputTrait, SampleFormatCenter},
+    traits::{SampleFormatCenter, SampleFormatConversion},
 };
 
 pub mod audio_processor;
@@ -29,16 +29,11 @@ pub mod traits;
 
 pub const AUDIO_RING_BUF_CAPACITY: usize = 1024 * 64;
 
-pub struct Audio<I, O>
-where
-    I: AudioInputTrait<O>,
-    O: AudioOutputTrait,
-    Vec<O>: FromIterator<I>,
-{
+pub struct Audio {
     host: Host,
     input: InputStream,
     output: OutputStream,
-    audio_processor: Arc<AudioProcessor<I, O>>,
+    audio_processor: Arc<AudioProcessor>,
 
     volume: Arc<atomic::AtomicU8>,
 }
@@ -49,12 +44,7 @@ pub enum InputMessage {
     Exit,
 }
 
-impl<I, O> Audio<I, O>
-where
-    I: AudioInputTrait<O>,
-    O: AudioOutputTrait,
-    Vec<O>: FromIterator<I>,
-{
+impl Audio {
     /// Creates a new [`Audio`] instance.
     ///
     /// `input_channel` is the channel where the microphone data gets sent after processing.
@@ -62,9 +52,9 @@ where
     /// `output_channel` is the channel that connects to the speaker.
     pub fn new(
         input_notify: Sender<InputMessage>,
-        output_channel: Receiver<Vec<O>>,
+        output_channel: Receiver<Vec<f32>>,
         init_volume: u8,
-    ) -> (Self, Caching<Arc<SharedRb<Heap<I>>>, false, true>) {
+    ) -> (Self, Caching<Arc<SharedRb<Heap<f32>>>, false, true>) {
         let host = default_host();
 
         let ring_buf = ringbuf::HeapRb::<I>::new(AUDIO_RING_BUF_CAPACITY);
@@ -119,11 +109,15 @@ where
         buf: &[T],
         info: &InputCallbackInfo,
         input_notify: &Sender<InputMessage>,
-        producer: &mut Caching<Arc<SharedRb<Heap<T>>>, true, false>,
+        producer: &mut Caching<Arc<SharedRb<Heap<f32>>>, true, false>,
+        sample_format: &SampleFormat,
     ) where
-        T: Copy,
+        T: Copy + SampleFormatConversion<f32>,
     {
-        producer.push_slice(buf);
+        producer.push_iter(
+            buf.iter()
+                .map(|sample| sample.to_sample(Some(&sample_format))),
+        );
         let _ = input_notify.try_send(InputMessage::Samples);
     }
 
@@ -131,15 +125,15 @@ where
     fn output_data_callback<T>(
         buf: &mut [T],
         info: &OutputCallbackInfo,
-        output_channel: &mut Peekable<TryIter<Vec<T>>>,
-        sample_format: SampleFormat,
+        output_channel: &mut Peekable<TryIter<Vec<f32>>>,
+        sample_format: &SampleFormat,
     ) where
-        T: Clone + Copy + SampleFormatCenter,
+        T: Clone + Copy + SampleFormatConversion<f32> + SampleFormatCenter,
     {
         let buf_len = buf.len();
         let mut buf_used = 0;
 
-        Self::try_fill_buf(output_channel, buf, &mut buf_used, buf_len);
+        Self::try_fill_buf(output_channel, buf, &mut buf_used, buf_len, sample_format);
 
         // Fill remaining with silence.
         buf[buf_used..buf_len].fill(T::center_point(Some(sample_format)));
@@ -147,12 +141,13 @@ where
 
     /// Tries to fill remaining `buf` space from `output_channel`.
     fn try_fill_buf<T>(
-        output_channel: &mut Peekable<crossbeam::channel::TryIter<Vec<T>>>,
+        output_channel: &mut Peekable<crossbeam::channel::TryIter<Vec<f32>>>,
         buf: &mut [T],
         buf_used: &mut usize,
         buf_len: usize,
+        sample_format: &SampleFormat,
     ) where
-        T: Copy,
+        T: Copy + SampleFormatConversion<f32>,
     {
         while *buf_used < buf_len
             && let Some(samples) = output_channel.peek_mut()
@@ -161,7 +156,10 @@ where
             let sample_len = samples.len();
 
             if sample_len > buf_space {
-                let extracted: Vec<T> = samples.drain(..buf_space).collect();
+                let extracted: Vec<T> = samples
+                    .drain(..buf_space)
+                    .map(|sample| T::from_sample(sample, Some(sample_format)))
+                    .collect();
                 buf[*buf_used..buf_len].copy_from_slice(&extracted);
                 *buf_used = buf_len;
                 log::trace!(
