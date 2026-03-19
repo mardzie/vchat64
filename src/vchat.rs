@@ -56,7 +56,6 @@ impl VChat {
                 consumer,
                 speaker_input_tx,
                 audio_c,
-                output_sample_format,
             )
         });
 
@@ -72,7 +71,7 @@ impl VChat {
         })
     }
 
-    fn udp_bridge<T>(
+    fn udp_bridge(
         voice_net: ArcMutex<VoiceNet>,
         addresses: ArcRwLock<Vec<SocketAddr>>,
 
@@ -84,9 +83,7 @@ impl VChat {
         >,
         output_tx: Sender<Vec<f32>>,
         audio: Arc<Audio>,
-    ) where
-        T: Copy,
-    {
+    ) {
         let output_sample_format = audio.output_sample_format();
         let audio_processor = audio.audio_processor();
 

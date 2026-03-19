@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, atomic},
 };
 
-use cpal::{Host, InputCallbackInfo, OutputCallbackInfo, SampleFormat, default_host};
+use cpal::{Host, InputCallbackInfo, OutputCallbackInfo, SampleFormat, SizedSample, default_host};
 use crossbeam::channel::{Receiver, Sender, TryIter};
 use ringbuf::{
     SharedRb,
@@ -121,7 +121,7 @@ impl Audio {
         producer: &mut Caching<Arc<SharedRb<Heap<f32>>>, true, false>,
         sample_format: &SampleFormat,
     ) where
-        T: Copy + SampleFormatConversion<f32>,
+        T: Copy + SizedSample + SampleFormatConversion<f32>,
     {
         producer.push_iter(
             buf.iter()
@@ -287,8 +287,7 @@ mod audio_test {
         let (mut buf, tx, rx) = get_setup();
         let mut rx = rx.try_iter().peekable();
 
-        tx.send(vec![2.0, 3.0, 4.0, 5.<f32, f32>::0, 6.0, 7.0])
-            .unwrap();
+        tx.send(vec![2.0, 3.0, 4.0, 5.0, 6.0, 7.0]).unwrap();
 
         let mut buf_used = 2;
         let buf_len = buf.len();
