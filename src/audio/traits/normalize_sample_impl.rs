@@ -87,31 +87,31 @@ impl NormalizeSample<f32> for u32 {
 }
 
 impl NormalizeSample<f32> for u64 {
-    fn normalize(self, sample_format: Option<&cpal::SampleFormat>) -> f32 {
+    fn normalize(self, _: Option<&cpal::SampleFormat>) -> f32 {
         self as f32 / u64::MAX as f32 * 2.0 - 1.0
     }
 
-    fn denormalize(sample: f32, sample_format: Option<&cpal::SampleFormat>) -> Self {
+    fn denormalize(sample: f32, _: Option<&cpal::SampleFormat>) -> Self {
         ((sample as f32 + 1.0) / 2.0 * u64::MAX as f32) as Self
     }
 }
 
 impl NormalizeSample<f32> for i8 {
-    fn normalize(self, sample_format: Option<&cpal::SampleFormat>) -> f32 {
+    fn normalize(self, _: Option<&cpal::SampleFormat>) -> f32 {
         self as f32 / i8::MAX as f32
     }
 
-    fn denormalize(sample: f32, sample_format: Option<&cpal::SampleFormat>) -> Self {
+    fn denormalize(sample: f32, _: Option<&cpal::SampleFormat>) -> Self {
         (sample * i8::MAX as f32) as Self
     }
 }
 
 impl NormalizeSample<f32> for i16 {
-    fn normalize(self, sample_format: Option<&cpal::SampleFormat>) -> f32 {
+    fn normalize(self, _: Option<&cpal::SampleFormat>) -> f32 {
         self as f32 / i16::MAX as f32
     }
 
-    fn denormalize(sample: f32, sample_format: Option<&cpal::SampleFormat>) -> Self {
+    fn denormalize(sample: f32, _: Option<&cpal::SampleFormat>) -> Self {
         (sample * i16::MAX as f32) as Self
     }
 }
@@ -141,11 +141,11 @@ impl NormalizeSample<f32> for i32 {
 }
 
 impl NormalizeSample<f32> for i64 {
-    fn normalize(self, sample_format: Option<&cpal::SampleFormat>) -> f32 {
+    fn normalize(self, _: Option<&cpal::SampleFormat>) -> f32 {
         self as f32 / Self::MAX as f32
     }
 
-    fn denormalize(sample: f32, sample_format: Option<&cpal::SampleFormat>) -> Self {
+    fn denormalize(sample: f32, _: Option<&cpal::SampleFormat>) -> Self {
         (sample as f32 * Self::MAX as f32) as Self
     }
 }
@@ -154,12 +154,13 @@ impl NormalizeSample<f32> for i64 {
 mod sample_format_converstion_test {
     use cpal::SampleFormat;
 
+    use crate::audio::traits::NormalizeSample;
+
     #[test]
     fn f32_test() {
         let start: f32 = 1.0;
-        let start_sample = Sample::from(start);
-        let step: f32 = start;
-        let end: f32 = f32::from_sample(step, None);
+        let step: f32 = start.normalize(None);
+        let end: f32 = f32::denormalize(step, None);
         assert_eq!(end, start);
         assert_eq!(step, 1.0);
     }
@@ -167,8 +168,8 @@ mod sample_format_converstion_test {
     #[test]
     fn f64_test() {
         let start: f64 = 1.0;
-        let step: f32 = start.to_sample(None);
-        let end: f64 = f64::from_sample(step, None);
+        let step: f32 = start.normalize(None);
+        let end: f64 = f64::denormalize(step, None);
 
         assert_eq!(end, start);
         assert_eq!(step, 1.0);
@@ -179,8 +180,8 @@ mod sample_format_converstion_test {
         type BaseType = u8;
 
         let start: BaseType = 64;
-        let step: f32 = start.to_sample(None);
-        let end: BaseType = BaseType::from_sample(step, None);
+        let step: f32 = start.normalize(None);
+        let end: BaseType = BaseType::denormalize(step, None);
 
         assert!(
             approx_eq_int(start as i128, end as i128, 1),
@@ -196,8 +197,8 @@ mod sample_format_converstion_test {
         type BaseType = u16;
 
         let start: BaseType = 128;
-        let step: f32 = start.to_sample(None);
-        let end: BaseType = BaseType::from_sample(step, None);
+        let step: f32 = start.normalize(None);
+        let end: BaseType = BaseType::denormalize(step, None);
 
         assert!(approx_eq_int(start as i128, end as i128, 1));
         assert!(approx_eq(step, -0.996));
@@ -208,8 +209,8 @@ mod sample_format_converstion_test {
         type BaseType = u32;
 
         let start: BaseType = 123456;
-        let step: f32 = start.to_sample(Some(&SampleFormat::U24));
-        let end: BaseType = BaseType::from_sample(step, Some(&SampleFormat::U24));
+        let step: f32 = start.normalize(Some(&SampleFormat::U24));
+        let end: BaseType = BaseType::denormalize(step, Some(&SampleFormat::U24));
 
         assert!(approx_eq_int(start as i128, end as i128, 10));
         assert!(approx_eq(step, -0.985));
@@ -220,8 +221,8 @@ mod sample_format_converstion_test {
         type BaseType = u32;
 
         let start: BaseType = 9342391;
-        let step: f32 = start.to_sample(None);
-        let end: BaseType = BaseType::from_sample(step, None);
+        let step: f32 = start.normalize(None);
+        let end: BaseType = BaseType::denormalize(step, None);
 
         assert!(
             approx_eq_int(start as i128, end as i128, 90),
@@ -232,8 +233,8 @@ mod sample_format_converstion_test {
         assert!(approx_eq(step, -0.995));
 
         let start2: BaseType = 9342391;
-        let step2: f32 = start2.to_sample(Some(&SampleFormat::U32));
-        let end2: BaseType = BaseType::from_sample(step, Some(&SampleFormat::U32));
+        let step2: f32 = start2.normalize(Some(&SampleFormat::U32));
+        let end2: BaseType = BaseType::denormalize(step, Some(&SampleFormat::U32));
 
         assert_eq!(start2, start);
         assert_eq!(step2, step);
@@ -253,8 +254,8 @@ mod sample_format_converstion_test {
         type BaseType = u64;
 
         let start: BaseType = 921343000000000000;
-        let step: f32 = start.to_sample(None);
-        let end: BaseType = BaseType::from_sample(step, None);
+        let step: f32 = start.normalize(None);
+        let end: BaseType = BaseType::denormalize(step, None);
 
         assert!(
             approx_eq_int(start as i128, end as i128, 2915320479745),
@@ -271,8 +272,8 @@ mod sample_format_converstion_test {
         type BaseType = i8;
 
         let start: BaseType = 126;
-        let step: f32 = start.to_sample(None);
-        let end: BaseType = BaseType::from_sample(step, None);
+        let step: f32 = start.normalize(None);
+        let end: BaseType = BaseType::denormalize(step, None);
 
         assert!(approx_eq_int(start as i128, end as i128, 1));
         assert!(approx_eq(step, 0.992), "Step: {}", step);
@@ -283,8 +284,8 @@ mod sample_format_converstion_test {
         type BaseType = i16;
 
         let start: BaseType = 30001;
-        let step: f32 = start.to_sample(None);
-        let end: BaseType = BaseType::from_sample(step, None);
+        let step: f32 = start.normalize(None);
+        let end: BaseType = BaseType::denormalize(step, None);
 
         assert!(approx_eq_int(start as i128, end as i128, 1));
         assert!(approx_eq(step, 0.915));
@@ -295,8 +296,8 @@ mod sample_format_converstion_test {
         type BaseType = i32;
 
         let start: BaseType = 120000;
-        let step: f32 = start.to_sample(Some(&SampleFormat::I24));
-        let end: BaseType = BaseType::from_sample(step, Some(&SampleFormat::I24));
+        let step: f32 = start.normalize(Some(&SampleFormat::I24));
+        let end: BaseType = BaseType::denormalize(step, Some(&SampleFormat::I24));
 
         assert!(approx_eq_int(start as i128, end as i128, 10));
         assert!(approx_eq(step, 0.014));
@@ -307,15 +308,15 @@ mod sample_format_converstion_test {
         type BaseType = i32;
 
         let start: BaseType = 50000690;
-        let step: f32 = start.to_sample(None);
-        let end: BaseType = BaseType::from_sample(step, None);
+        let step: f32 = start.normalize(None);
+        let end: BaseType = BaseType::denormalize(step, None);
 
         assert!(approx_eq_int(start as i128, end as i128, 10));
         assert!(approx_eq(step, 0.023));
 
         let start2: BaseType = 50000690;
-        let step2: f32 = start2.to_sample(Some(&SampleFormat::I32));
-        let end2: BaseType = BaseType::from_sample(step2, Some(&SampleFormat::I32));
+        let step2: f32 = start2.normalize(Some(&SampleFormat::I32));
+        let end2: BaseType = BaseType::denormalize(step2, Some(&SampleFormat::I32));
 
         assert_eq!(start2, start);
         assert_eq!(step2, step);
@@ -330,8 +331,8 @@ mod sample_format_converstion_test {
         type BaseType = i64;
 
         let start: BaseType = 982182777277666;
-        let step: f32 = start.to_sample(None);
-        let end: BaseType = BaseType::from_sample(step, None);
+        let step: f32 = start.normalize(None);
+        let end: BaseType = BaseType::denormalize(step, None);
 
         assert!(
             approx_eq_int(start as i128, end as i128, 10000000),

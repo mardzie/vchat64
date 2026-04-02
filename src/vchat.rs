@@ -9,7 +9,7 @@ use crossbeam::channel::{Receiver, Sender};
 use ringbuf::traits::{Consumer, Observer};
 
 use crate::{
-    audio::{Audio, InputMessage, audio_processor::AudioProcessor, traits::SampleFormatConversion},
+    audio::{Audio, InputMessage, audio_processor::AudioProcessor, traits::NormalizeSample},
     types::{ArcMutex, ArcRwLock},
     udp_packet_net::MAX_PAYLOAD_SIZE,
     voice_net::{self, VoiceNet},
@@ -183,7 +183,7 @@ impl VChat {
         output_sample_format: &cpal::SampleFormat,
     ) -> Result<(), ()>
     where
-        T: SampleFormatConversion<f32>,
+        T: NormalizeSample<f32>,
     {
         const AUDIO_VALUE_BYTE_LEN: usize = 4;
 
@@ -215,7 +215,7 @@ impl VChat {
             .map(f32::from_be_bytes)
             .collect();
 
-        let samples = T::to_sample_buf(data, Some(output_sample_format)).collect();
+        let samples = T::denormalize_buf(data, Some(output_sample_format)).collect();
 
         match output_tx.send(samples) {
             Ok(_) => {}

@@ -17,7 +17,7 @@ use crate::audio::{
     audio_processor::AudioProcessor,
     input::InputStream,
     output::OutputStream,
-    traits::{SampleOrigin, SampleFormatConversion, copy_from_iter_impl::CopyFromIterator},
+    traits::{NormalizeSample, SampleOrigin, copy_from_iter_impl::CopyFromIterator},
 };
 
 pub mod audio_processor;
@@ -121,11 +121,11 @@ impl Audio {
         producer: &mut Caching<Arc<SharedRb<Heap<f32>>>, true, false>,
         sample_format: &SampleFormat,
     ) where
-        T: Copy + SizedSample + SampleFormatConversion<f32>,
+        T: Copy + SizedSample + NormalizeSample<f32>,
     {
         producer.push_iter(
             buf.iter()
-                .map(|sample| sample.to_sample(Some(&sample_format))),
+                .map(|sample| sample.normalize(Some(&sample_format))),
         );
         let _ = input_notify.try_send(InputMessage::Samples);
     }
@@ -137,7 +137,7 @@ impl Audio {
         output_channel: &mut Peekable<TryIter<Vec<f32>>>,
         sample_format: &SampleFormat,
     ) where
-        T: Clone + Copy + SampleFormatConversion<f32> + SampleOrigin,
+        T: Clone + Copy + NormalizeSample<f32> + SampleOrigin,
     {
         let buf_len = buf.len();
         let mut buf_used = 0;
@@ -156,7 +156,7 @@ impl Audio {
         buf_len: usize,
         sample_format: &SampleFormat,
     ) where
-        T: Copy + SampleFormatConversion<f32>,
+        T: Copy + NormalizeSample<f32>,
     {
         while *buf_used < buf_len
             && let Some(samples) = output_channel.peek_mut()
@@ -167,7 +167,7 @@ impl Audio {
             if sample_len > buf_space {
                 let extracted = samples
                     .drain(..buf_space)
-                    .map(|sample| T::to_sample(sample, Some(sample_format)));
+                    .map(|sample| T::denormalize(sample, Some(sample_format)));
                 buf[*buf_used..buf_len].copy_from_iter(extracted);
                 *buf_used = buf_len;
                 log::trace!(
@@ -181,11 +181,8 @@ impl Audio {
                     .expect("The peeked value was Samples but now it isn't anymore.");
 
                 let new_used = *buf_used + sample_len;
-                buf[*buf_used..new_used].copy_from_iter(
-                    samples
-                        .into_iter()
-                        .map(|sample| T::to_sample(sample, Some(sample_format))),
-                );
+                buf[*buf_used..new_used]
+                    .copy_from_iter(T::denormalize_buf(samples, Some(sample_format)));
                 *buf_used = new_used;
                 log::trace!(
                     "Output Data Callback: Filled space with {} samples of full extra sample, remaining space {}",
