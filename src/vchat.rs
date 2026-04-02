@@ -215,7 +215,7 @@ impl VChat {
             .map(f32::from_be_bytes)
             .collect();
 
-        let samples = T::from_sample_buf(data, Some(output_sample_format)).collect();
+        let samples = T::to_sample_buf(data, Some(output_sample_format)).collect();
 
         match output_tx.send(samples) {
             Ok(_) => {}

@@ -17,7 +17,7 @@ use crate::audio::{
     audio_processor::AudioProcessor,
     input::InputStream,
     output::OutputStream,
-    traits::{SampleFormatCenter, SampleFormatConversion, copy_from_iter_impl::CopyFromIterator},
+    traits::{SampleOrigin, SampleFormatConversion, copy_from_iter_impl::CopyFromIterator},
 };
 
 pub mod audio_processor;
@@ -137,7 +137,7 @@ impl Audio {
         output_channel: &mut Peekable<TryIter<Vec<f32>>>,
         sample_format: &SampleFormat,
     ) where
-        T: Clone + Copy + SampleFormatConversion<f32> + SampleFormatCenter,
+        T: Clone + Copy + SampleFormatConversion<f32> + SampleOrigin,
     {
         let buf_len = buf.len();
         let mut buf_used = 0;
@@ -145,7 +145,7 @@ impl Audio {
         Self::try_fill_buf(output_channel, buf, &mut buf_used, buf_len, sample_format);
 
         // Fill remaining with silence.
-        buf[buf_used..buf_len].fill(T::center_point(Some(sample_format)));
+        buf[buf_used..buf_len].fill(T::origin(Some(sample_format)));
     }
 
     /// Tries to fill remaining `buf` space from `output_channel`.
@@ -167,7 +167,7 @@ impl Audio {
             if sample_len > buf_space {
                 let extracted = samples
                     .drain(..buf_space)
-                    .map(|sample| T::from_sample(sample, Some(sample_format)));
+                    .map(|sample| T::to_sample(sample, Some(sample_format)));
                 buf[*buf_used..buf_len].copy_from_iter(extracted);
                 *buf_used = buf_len;
                 log::trace!(
@@ -184,7 +184,7 @@ impl Audio {
                 buf[*buf_used..new_used].copy_from_iter(
                     samples
                         .into_iter()
-                        .map(|sample| T::from_sample(sample, Some(sample_format))),
+                        .map(|sample| T::to_sample(sample, Some(sample_format))),
                 );
                 *buf_used = new_used;
                 log::trace!(

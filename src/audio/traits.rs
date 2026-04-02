@@ -1,40 +1,33 @@
 pub mod copy_from_iter_impl;
-pub mod sample_format_center_impl;
-pub mod sample_format_conversion_impl;
+pub mod normalize_sample_impl;
+pub mod sample_origin_impl;
 
-pub trait SampleFormatConversion<T> {
-    /// Converts a sample `self` into `T`.
-    ///
-    /// If the sample is `U24` or `I24` you need to specify the `SampleFormat` else it will be interpreted as `U32` or `I32`.
-    fn to_sample(self, sample_format: Option<&cpal::SampleFormat>) -> T;
+/// Trait for converting some `Sample` into `T` and back.
+pub trait NormalizeSample<Normalized>
+where
+    Self: Sized,
+{
+    fn normalize(self, sample_format: Option<&cpal::SampleFormat>) -> Normalized;
 
-    /// Converts a sample list `buf` into an iterator with `T` contents.
-    ///
-    /// If the sample is `U24` or `I24` you need to specify the `sample_format` else it will be interpreted as `U32` or `I32`.
-    fn to_sample_buf(
+    fn normalize_buf(
         buf: Vec<Self>,
         sample_format: Option<&cpal::SampleFormat>,
-    ) -> std::iter::Map<std::vec::IntoIter<Self>, impl FnMut(Self) -> T>
-    where
-        Self: Sized;
+    ) -> impl Iterator<Item = Normalized> {
+        buf.into_iter().map(move |raw| raw.normalize(sample_format))
+    }
 
-    /// Converts a sample `T` into `Self`.
-    ///
-    /// If the sample is `U24` or `I24` you need to specify the `SampleFormat` else it will be interpreted as `U32` or `I32`.
-    fn from_sample(sample: T, sample_format: Option<&cpal::SampleFormat>) -> Self;
+    fn denormalize(sample: Normalized, sample_format: Option<&cpal::SampleFormat>) -> Self;
 
-    /// Converts a list `buf` into an iterator with `Self` contents.
-    ///
-    /// If the sample is `U24` or `I24` you need to specify the `sample_format` else it will be interpreted as `U32` or `I32`.
-    fn from_sample_buf(
-        buf: Vec<T>,
+    fn denormalize_buf(
+        buf: Vec<Normalized>,
         sample_format: Option<&cpal::SampleFormat>,
-    ) -> std::iter::Map<std::vec::IntoIter<T>, impl FnMut(T) -> Self>
-    where
-        Self: Sized;
+    ) -> impl Iterator<Item = Self> {
+        buf.into_iter()
+            .map(move |normalized| Self::denormalize(normalized, sample_format))
+    }
 }
 
-pub trait SampleFormatCenter {
+pub trait SampleOrigin {
     /// Returns the center point of this sample type.
-    fn center_point(sample_format: Option<&cpal::SampleFormat>) -> Self;
+    fn origin(sample_format: Option<&cpal::SampleFormat>) -> Self;
 }
