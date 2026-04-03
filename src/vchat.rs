@@ -9,7 +9,7 @@ use crossbeam::channel::{Receiver, Sender};
 use ringbuf::traits::{Consumer, Observer};
 
 use crate::{
-    audio::{Audio, InputMessage, audio_processor::AudioProcessor, traits::NormalizeSample},
+    audio::{Audio, InputMessage, audio_processor::AudioProcessor},
     types::{ArcMutex, ArcRwLock},
     udp_packet_net::MAX_PAYLOAD_SIZE,
     voice_net::{self, VoiceNet},
@@ -84,7 +84,6 @@ impl VChat {
         output_tx: Sender<Vec<f32>>,
         audio: Arc<Audio>,
     ) {
-        let output_sample_format = audio.output_sample_format();
         let audio_processor = audio.audio_processor();
 
         loop {
@@ -100,7 +99,7 @@ impl VChat {
                 break;
             };
 
-            if Self::udp_output_bridge(&voice_net, &output_tx, &output_sample_format).is_err() {
+            if Self::udp_output_bridge(&voice_net, &output_tx).is_err() {
                 break;
             };
         }
@@ -177,14 +176,10 @@ impl VChat {
         Ok(())
     }
 
-    fn udp_output_bridge<T>(
+    fn udp_output_bridge(
         voice_net: &ArcMutex<VoiceNet>,
-        output_tx: &crossbeam::channel::Sender<Vec<T>>,
-        output_sample_format: &cpal::SampleFormat,
-    ) -> Result<(), ()>
-    where
-        T: NormalizeSample<f32>,
-    {
+        output_tx: &crossbeam::channel::Sender<Vec<f32>>,
+    ) -> Result<(), ()> {
         const AUDIO_VALUE_BYTE_LEN: usize = 4;
 
         let (addr, bytes) = {
@@ -204,7 +199,7 @@ impl VChat {
             bytes.len()
         );
 
-        let data: Vec<f32> = bytes
+        let samples: Vec<f32> = bytes
             .chunks(AUDIO_VALUE_BYTE_LEN)
             .map(|chunk| {
                 let mut buf = [0u8; AUDIO_VALUE_BYTE_LEN];
@@ -214,8 +209,6 @@ impl VChat {
             })
             .map(f32::from_be_bytes)
             .collect();
-
-        let samples = T::denormalize_buf(data, Some(output_sample_format)).collect();
 
         match output_tx.send(samples) {
             Ok(_) => {}
