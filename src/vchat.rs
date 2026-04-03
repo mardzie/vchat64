@@ -141,11 +141,13 @@ impl VChat {
             })
             .collect();
 
-        log::trace!(
-            "Input UDP Bridge: Preparing {} packet {} bytes.",
-            byte_packets.len(),
-            byte_packets[0].len()
-        );
+        if !byte_packets.is_empty() {
+            log::trace!(
+                "Input UDP Bridge: Preparing {} packet {} bytes.",
+                byte_packets.len(),
+                byte_packets[0].len()
+            );
+        }
 
         let voice_net_lock = voice_net
             .lock()
