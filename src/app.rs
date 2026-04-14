@@ -17,9 +17,11 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, List, Widget},
 };
 
-pub mod app_events;
 pub mod config;
-pub mod widgets;
+
+mod app_events;
+mod friend_code;
+mod widgets;
 
 use crate::{
     CHILL_TIMEOUT,
@@ -158,106 +160,6 @@ impl App {
         if self.event_channel_tx.try_send(Event::ReDraw).is_err() {
             log::warn!("Failed to issue redraw: Content may be outdated: Press any key to update.");
         };
-    }
-
-    fn get_local_friend_code(&self) -> Result<String, String> {
-        let ip = match local_ip_address::local_ip() {
-            Ok(ip) => ip,
-            Err(e) => {
-                log::warn!("Failed to get local ip: {}", e);
-                return Err("Failed to fetch local friend code!".to_string());
-            }
-        };
-
-        Ok(self.get_friend_code_from_ip(ip))
-    }
-
-    fn get_public_friend_code(&self) -> Result<String, String> {
-        let ip = match self
-            .runtime
-            .block_on(public_ip_address::perform_lookup(None))
-        {
-            Ok(lookup) => lookup.ip,
-            Err(_) => {
-                log::warn!("Failed to perform public ip lookup.");
-                return Err("Failed to fetch public friend code!".to_string());
-            }
-        };
-
-        Ok(self.get_friend_code_from_ip(ip))
-    }
-
-    #[inline]
-    fn get_friend_code_from_ip(&self, ip: std::net::IpAddr) -> String {
-        let addr = SocketAddr::new(ip, self.config.port());
-        Self::ip_to_friend_code(addr)
-    }
-
-    fn ip_to_friend_code(addr: SocketAddr) -> String {
-        let mut addr_bytes: Vec<u8> = Vec::with_capacity(18); // 18 bytes to make space for ipv6 + port or ipv4 + port.
-        match addr.ip() {
-            std::net::IpAddr::V4(ipv4) => {
-                addr_bytes.extend_from_slice(&ipv4.octets());
-            }
-            std::net::IpAddr::V6(ipv6) => {
-                addr_bytes.extend_from_slice(&ipv6.octets());
-            }
-        };
-
-        addr_bytes.extend_from_slice(&addr.port().to_be_bytes());
-
-        let hex = hex::encode(addr_bytes);
-        hex.chars()
-            .collect::<Vec<char>>()
-            .chunks(2)
-            .map(|chunk| chunk.iter().collect::<String>())
-            .collect::<Vec<String>>()
-            .join(" ")
-    }
-
-    fn friend_code_to_ip(&mut self, mut friend_code: String) -> Result<SocketAddr, ()> {
-        friend_code = friend_code.trim().to_string();
-        friend_code = friend_code.replace(" ", "");
-
-        let bytes = match hex::decode(friend_code) {
-            Ok(bytes) => bytes,
-            Err(e) => {
-                log::warn!("Failed to decode friend code: {}", e);
-                self.set_error(format!("Failed to decode friend code: {}!", e));
-                return Err(());
-            }
-        };
-
-        let mut port_bytes = [0u8; 2];
-        let ip = match bytes.len() {
-            6 => {
-                let mut ip_bytes = [0u8; 4];
-                ip_bytes.copy_from_slice(&bytes[..4]);
-                port_bytes.copy_from_slice(&bytes[4..6]);
-
-                std::net::IpAddr::from(std::net::Ipv4Addr::from_octets(ip_bytes))
-            }
-            18 => {
-                let mut ip_bytes = [0u8; 16];
-                ip_bytes.copy_from_slice(&bytes[..16]);
-                port_bytes.copy_from_slice(&bytes[16..18]);
-
-                std::net::IpAddr::V6(std::net::Ipv6Addr::from_octets(ip_bytes))
-            }
-            bytes => {
-                log::warn!("Failed to decode friend code: Found {} bytes", bytes);
-                self.set_error(format!(
-                    "Failed to decode friend code: Invalid lenght {} bytes!",
-                    bytes
-                ));
-                return Err(());
-            }
-        };
-
-        Ok(std::net::SocketAddr::new(
-            ip,
-            u16::from_be_bytes(port_bytes),
-        ))
     }
 
     pub fn handle_event(&mut self) -> Result<()> {
