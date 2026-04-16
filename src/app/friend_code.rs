@@ -1,13 +1,19 @@
 use std::{
-    net::{IpAddr, SocketAddr},
+    net::{self, IpAddr, SocketAddr},
     str::FromStr,
 };
+
+pub const IPV4_BYTES_COUNT: usize = 4;
+pub const IPV6_BYTES_COUNT: usize = 16;
+pub const PORT_BYTES_COUNT: usize = 2;
+pub const IPV4_ADDR_BYTES_COUNT: usize = IPV4_BYTES_COUNT + PORT_BYTES_COUNT;
+pub const IPV6_ADDR_BYTES_COUNT: usize = IPV6_BYTES_COUNT + PORT_BYTES_COUNT;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FriendCode(String);
 
 impl FriendCode {
-    fn new(addr: SocketAddr) -> Self {
+    pub fn new(addr: SocketAddr) -> Self {
         let mut addr_bytes: Vec<u8>;
         match addr.ip() {
             IpAddr::V4(ipv4) => {
@@ -26,24 +32,24 @@ impl FriendCode {
         Self(hex)
     }
 
-    pub fn new_local(port: u16) -> Result<Self, Error> {
+    pub fn new_local(port: u16) -> Result<Self, IpError> {
         let ip = match local_ip_address::local_ip() {
             Ok(ip) => ip,
             Err(e) => {
                 log::warn!("Failed to get local ip: {}", e);
-                return Err("Failed to fetch local friend code!".to_string());
+                return Err(IpError::from(e));
             }
         };
 
         Ok(Self::from_ip_port(ip, port))
     }
 
-    pub fn new_public(runtime: &tokio::runtime::Runtime, port: u16) -> Result<Self, Error> {
+    pub fn new_public(runtime: &tokio::runtime::Runtime, port: u16) -> Result<Self, IpError> {
         let ip = match runtime.block_on(public_ip_address::perform_lookup(None)) {
             Ok(lookup) => lookup.ip,
-            Err(_) => {
+            Err(e) => {
                 log::warn!("Failed to perform public ip lookup.");
-                return Err("Failed to fetch public friend code!".to_string());
+                return Err(IpError::from(e));
             }
         };
 
@@ -54,8 +60,8 @@ impl FriendCode {
         Self::new(SocketAddr::new(ip, port))
     }
 
-    pub fn from_string(addr: &str) -> Result<Self, Error> {
-        let addr = SocketAddr::from_str(addr).map_err(|_| ())?;
+    pub fn from_string_addr(addr: &str) -> Result<Self, Error> {
+        let addr = SocketAddr::from_str(addr)?;
 
         let mut addr_bytes: Vec<u8>;
         match addr.ip() {
@@ -77,41 +83,51 @@ impl FriendCode {
     pub fn from_string_ip(ip: &str, port: u16) -> Result<Self, Error> {
         let mut addr = ip.to_string();
         addr.push_str(&port.to_string());
-        Self::from_string(addr.as_str())
+        Self::from_string_addr(addr.as_str())
     }
 
-    fn to_socket_addr(&self) -> Result<SocketAddr, Error> {
+    pub fn from_string_friend_code(fc: String) -> Result<Self, Error> {
+        let fc_string = fc.trim().replace(" ", "");
+        let fc = Self(fc_string);
+        let _ = fc
+            .to_socket_addr()
+            .map_err(|_| Error::InvalidFriendCodeString)?; // Check if the string is a valid `SocketAddr`
+
+        Ok(fc)
+    }
+
+    pub fn to_socket_addr(&self) -> SocketAddr {
         let bytes = match hex::decode(&self.0) {
             Ok(bytes) => bytes,
             Err(e) => {
                 log::warn!("Failed to decode friend code: {}", e);
-                return Err(());
+                panic!("The internal `String` must always be a valid hex code!");
             }
         };
 
         let mut port_bytes = [0u8; 2];
         let ip = match bytes.len() {
-            6 => {
+            IPV4_ADDR_BYTES_COUNT => {
                 let mut ip_bytes = [0u8; 4];
                 ip_bytes.copy_from_slice(&bytes[..4]);
                 port_bytes.copy_from_slice(&bytes[4..6]);
 
                 std::net::IpAddr::from(std::net::Ipv4Addr::from_octets(ip_bytes))
             }
-            18 => {
+            IPV6_ADDR_BYTES_COUNT => {
                 let mut ip_bytes = [0u8; 16];
                 ip_bytes.copy_from_slice(&bytes[..16]);
                 port_bytes.copy_from_slice(&bytes[16..18]);
 
                 std::net::IpAddr::V6(std::net::Ipv6Addr::from_octets(ip_bytes))
             }
-            bytes => {
-                log::warn!("Failed to decode friend code: Found {} bytes", bytes);
-                return Err(());
+            count => {
+                log::warn!("Failed to decode friend code: Found {} bytes", count);
+                panic!("The internal `String` must have a valid length!")
             }
         };
 
-        Ok(SocketAddr::new(ip, u16::from_be_bytes(port_bytes)))
+        SocketAddr::new(ip, u16::from_be_bytes(port_bytes))
     }
 
     pub fn as_str(&self) -> &str {
@@ -137,7 +153,7 @@ impl TryFrom<&str> for FriendCode {
     type Error = Error;
 
     fn try_from(addr: &str) -> Result<Self, Self::Error> {
-        Self::from_string(addr)
+        Self::from_string_addr(addr)
     }
 }
 
@@ -147,5 +163,18 @@ impl std::fmt::Display for FriendCode {
     }
 }
 
-#[derive(Debug, thiserror::Error, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Error {}
+#[derive(thiserror::Error, Debug, Clone)]
+pub enum Error {
+    #[error("Address Parse Error: {0}")]
+    AddrParse(#[from] net::AddrParseError),
+    #[error("Invalid Friend Code String")]
+    InvalidFriendCodeString,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum IpError {
+    #[error("Local Ip Error: {0}")]
+    Local(#[from] local_ip_address::Error),
+    #[error("Public Ip Error: {0}")]
+    Public(#[from] public_ip_address::error::Error),
+}

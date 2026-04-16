@@ -25,7 +25,10 @@ mod widgets;
 
 use crate::{
     CHILL_TIMEOUT,
-    app::{app_events::Event, config::Config, widgets::line_text_area::LineTextArea},
+    app::{
+        app_events::Event, config::Config, friend_code::FriendCode,
+        widgets::line_text_area::LineTextArea,
+    },
     helpers::should_exit,
     state::AppState,
     vchat::VChat,
@@ -180,10 +183,12 @@ impl App {
                         && key_event.code == KeyCode::Enter
                     {
                         let buf = self.addr_input.get_buf().to_string();
-                        if let Ok(addr) = self.friend_code_to_ip(buf) {
-                            self.vchat.add_address(addr);
-                            self.addr_input.clear();
-                        };
+                        if let Ok(fc) = FriendCode::from_string_friend_code(buf) {
+                            if let Ok(addr) = fc.to {
+                                self.vchat.add_address(addr);
+                                self.addr_input.clear();
+                            };
+                        }
 
                         self.to_app_state();
                     } else {
