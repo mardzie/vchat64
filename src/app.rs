@@ -10,6 +10,7 @@ use std::{
 
 use color_eyre::eyre::Result;
 use crossterm::event::{self, KeyCode, KeyEvent, KeyEventKind};
+use friend_code::FriendCode;
 use ratatui::{
     layout::{Alignment, Constraint, Layout},
     style::Stylize,
@@ -20,15 +21,11 @@ use ratatui::{
 pub mod config;
 
 mod app_events;
-mod friend_code;
 mod widgets;
 
 use crate::{
     CHILL_TIMEOUT,
-    app::{
-        app_events::Event, config::Config, friend_code::FriendCode,
-        widgets::line_text_area::LineTextArea,
-    },
+    app::{app_events::Event, config::Config, widgets::line_text_area::LineTextArea},
     helpers::should_exit,
     state::AppState,
     vchat::VChat,
@@ -184,10 +181,8 @@ impl App {
                     {
                         let buf = self.addr_input.get_buf().to_string();
                         if let Ok(fc) = FriendCode::from_string_friend_code(buf) {
-                            if let Ok(addr) = fc.to {
-                                self.vchat.add_address(addr);
-                                self.addr_input.clear();
-                            };
+                            self.vchat.add_address(fc.to_socket_addr());
+                            self.addr_input.clear();
                         }
 
                         self.to_app_state();
@@ -328,21 +323,26 @@ impl App {
         let block = Block::new().borders(Borders::TOP).title(title);
         block.render(public_header_area, buf);
 
-        let public_friend_code = Line::from(self.get_public_friend_code().unwrap_or_else(|x| x))
-            .bold()
-            .red()
-            .centered();
-        public_friend_code.render(public_code_area, buf);
+        let public_friend_code_line = {
+            let public_friend_code = match FriendCode::new_public(&self.runtime, self.config.port) {
+                Ok(fc) => fc.to_string(),
+                Err(e) => format!("Failed to get public friend code: {}", e),
+            };
+            Line::from(public_friend_code).bold().red().centered()
+        };
+        public_friend_code_line.render(public_code_area, buf);
 
         let title = Line::from(" Local Friend Code ").bold().yellow();
         let block = Block::new().borders(Borders::TOP).title(title);
         block.render(local_header_area, buf);
-
-        let local_friend_code = Line::from(self.get_local_friend_code().unwrap_or_else(|x| x))
-            .bold()
-            .red()
-            .centered();
-        local_friend_code.render(local_code_area, buf);
+        let local_friend_code_line = {
+            let local_friend_code = match FriendCode::new_local(self.config.port) {
+                Ok(fc) => fc.to_string(),
+                Err(e) => format!("Failed to get local friend code: {}", e),
+            };
+            Line::from(local_friend_code).bold().red().centered()
+        };
+        local_friend_code_line.render(local_code_area, buf);
     }
 
     fn render_text_area(&self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {

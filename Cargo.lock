@@ -948,6 +948,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "friend_code"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "local-ip-address",
+ "log",
+ "public-ip-address",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "futures-channel"
 version = "0.3.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3245,6 +3257,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
+name = "vchat"
+version = "0.1.0"
+
+[[package]]
 name = "vchat64"
 version = "0.1.0"
 dependencies = [
@@ -3255,11 +3271,9 @@ dependencies = [
  "crossterm",
  "dirs",
  "env_logger",
- "hex",
- "local-ip-address",
+ "friend_code",
  "log",
  "opus",
- "public-ip-address",
  "ratatui",
  "rayon",
  "ringbuf",
