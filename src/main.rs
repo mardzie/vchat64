@@ -3,15 +3,8 @@
 use color_eyre::Result;
 
 mod app;
-mod audio;
-mod hash;
 mod helpers;
 mod state;
-mod traits;
-mod types;
-mod udp_packet_net;
-mod vchat;
-mod voice_net;
 
 use crate::app::App;
 

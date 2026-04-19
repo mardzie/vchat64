@@ -7,28 +7,32 @@ edition = "2024"
 members = ["crates/friend_code", "crates/vchat"]
 
 [workspace.dependencies]
+chrono = "0.4.44"
+color-eyre = "0.6.5"
+crossbeam = "0.8.4"
+dirs = "6.0.0"
 hex = "0.4.3"
 log = "0.4.29"
+rayon = "1.11.0"
+ringbuf = "0.4.8"
 thiserror = "2.0.18"
 tokio = { version = "1.51.0", features = ["full"] }
 tracing-subscriber = "0.3.23"
 
 [dependencies]
-chrono = "0.4.44"
-color-eyre = "0.6.5"
-cpal = "0.17.3"
-crossbeam = "0.8.4"
+chrono.workspace = true
+color-eyre.workspace = true
 crossterm = "0.29.0"
-dirs = "6.0.0"
 env_logger = "0.11.10"
 friend_code.path = "crates/friend_code"
 log.workspace = true
-opus = "0.3.1"
 ratatui = "0.30.0"
-rayon = "1.11.0"
-ringbuf = "0.4.8"
-sha2 = "0.11.0"
 thiserror.workspace = true
 tokio.workspace = true
 tracing = "0.1.44"
 tracing-subscriber.workspace = true
+vchat.path = "crates/vchat"
+
+[profile.dev.package."*"]
+opt-level = 3
+debug = true

@@ -17,6 +17,7 @@ use ratatui::{
     text::Line,
     widgets::{Block, BorderType, Borders, Clear, List, Widget},
 };
+use vchat::VChat;
 
 pub mod config;
 
@@ -28,7 +29,6 @@ use crate::{
     app::{app_events::Event, config::Config, widgets::line_text_area::LineTextArea},
     helpers::should_exit,
     state::AppState,
-    vchat::VChat,
 };
 
 pub const KEY_CODE_ACCEPT: KeyCode = KeyCode::Enter;
