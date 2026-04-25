@@ -2,12 +2,10 @@ use std::{
     collections::VecDeque,
     io,
     net::{SocketAddr, ToSocketAddrs},
-    sync::{Arc, Mutex},
 };
 
 use crate::{
     helpers::calculate_version,
-    types::ArcMutex,
     udp_packet_net::{self, UdpPacketNet, packet::Packet},
 };
 
@@ -23,7 +21,7 @@ pub struct VoiceNet {
 
     packet_net: UdpPacketNet,
 
-    incoming_packet_buf: ArcMutex<VecDeque<(chrono::DateTime<chrono::Utc>, PacketTuple)>>,
+    incoming_packet_buf: VecDeque<(chrono::DateTime<chrono::Utc>, PacketTuple)>,
 }
 
 impl VoiceNet {
@@ -37,7 +35,7 @@ impl VoiceNet {
         Ok(Self {
             current_packet_version,
             packet_net,
-            incoming_packet_buf: Arc::new(Mutex::new(VecDeque::with_capacity(1024))),
+            incoming_packet_buf: VecDeque::with_capacity(1024),
         })
     }
 
@@ -65,18 +63,13 @@ impl VoiceNet {
             }
         }
 
-        let mut packet_buf = self
-            .incoming_packet_buf
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-
         // Keep `PACKET_BUF_TIME_IN_QUEUE` packets in the queue. This helps to keep as many packets as possible.
-        let (dt, packet) = packet_buf.pop_front()?;
+        let (dt, packet) = self.incoming_packet_buf.pop_front()?;
         let now = chrono::Utc::now();
         if now - dt > PACKET_BUF_TIME_IN_QUEUE {
             Some((dt, packet))
         } else {
-            packet_buf.push_front((dt, packet));
+            self.incoming_packet_buf.push_front((dt, packet));
             None
         }
     }
@@ -110,21 +103,19 @@ impl VoiceNet {
 
         let packet_timestamp = packet.header().timestamp();
 
-        let mut packet_buf = self
-            .incoming_packet_buf
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-
         // Do not insert too old packets.
-        let idx = packet_buf.partition_point(|(ts, _)| ts < &packet_timestamp);
-        if idx > 0 || packet_buf.is_empty() {
-            packet_buf.insert(idx, (packet_timestamp, (src_addr, packet.payload)));
+        let idx = self
+            .incoming_packet_buf
+            .partition_point(|(ts, _)| ts < &packet_timestamp);
+        if idx > 0 || self.incoming_packet_buf.is_empty() {
+            self.incoming_packet_buf
+                .insert(idx, (packet_timestamp, (src_addr, packet.payload)));
             Ok(())
         } else {
             Err(format!(
                 "Packet too old: Packet {} < {} Oldest",
                 packet_timestamp,
-                packet_buf.front().expect("Has to be Some").0 // Has to be Some or the If should have been chosen.
+                self.incoming_packet_buf.front().expect("Has to be Some").0 // Has to be Some or the If should have been chosen.
             ))
         }
     }
