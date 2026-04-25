@@ -47,7 +47,7 @@ impl ConfigFilter {
         let filetered = self
             .config
             .into_iter()
-            .filter(|x| x.channels() > channel_count)
+            .filter(|x| x.channels() >= channel_count)
             .collect();
 
         Self { config: filetered }

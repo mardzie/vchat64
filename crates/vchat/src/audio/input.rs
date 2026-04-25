@@ -32,7 +32,7 @@ impl InputStream {
 
         let config = match ConfigFilter::from_supported_input_config(supported_configs)
             .filter_sample_format(cpal::SampleFormat::F32)
-            .filter_channel_count_ge(1)
+            .filter_channel_count_ge(2)
             .get_config_smallest_channel_count()
         {
             Some(config) => config.with_max_sample_rate(),
