@@ -134,7 +134,7 @@ impl VChat {
             Err(crossbeam::channel::TryRecvError::Disconnected) => return Err(()),
         };
 
-        let mut data = Vec::with_capacity(input_ringbuf.occupied_len());
+        let mut data = vec![0f32; input_ringbuf.occupied_len()];
         input_ringbuf.pop_slice(&mut data);
 
         let data = audio_processor.process_audio(data);
