@@ -11,7 +11,7 @@ use crate::{
 
 pub mod error;
 
-const PACKET_BUF_TIME_IN_QUEUE: chrono::Duration = chrono::Duration::milliseconds(100);
+const PACKET_BUF_TIME_IN_QUEUE: chrono::Duration = chrono::Duration::milliseconds(40);
 
 pub type PacketTuple = (SocketAddr, Vec<u8>);
 
