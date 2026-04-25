@@ -165,9 +165,8 @@ impl VChat {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         for bytes in byte_packets {
             for addr in addresses_lock.iter() {
-                match voice_net_lock.send(bytes.clone(), addr) {
-                    Ok(_) => {}
-                    Err(e) => match e {
+                if let Err(e) = voice_net_lock.send(bytes.clone(), addr) {
+                    match e {
                         voice_net::error::SendError::WouldBlock => {
                             log::warn!("Input UDP Bridge: Failed to send `Packet` to {}", addr);
                         }
@@ -178,7 +177,7 @@ impl VChat {
                                 e
                             );
                         }
-                    },
+                    };
                 };
             }
         }
