@@ -18,7 +18,6 @@ use crate::{
 mod audio;
 mod hash;
 mod helpers;
-mod traits;
 mod types;
 mod udp_packet_net;
 mod voice_net;

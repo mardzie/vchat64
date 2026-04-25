@@ -23,7 +23,7 @@ pub struct Packet {
 pub struct Header {
     version: u32,
     timestamp: chrono::DateTime<chrono::Utc>,
-    checksum: [u8; 4],
+    checksum: u32,
 }
 
 impl Packet {
@@ -89,7 +89,7 @@ impl Header {
             );
         };
 
-        let checksum = hash::Sha256::checksum(payload);
+        let checksum = hash::Crc32::checksum(payload);
 
         Self {
             version: calculate_version(),
@@ -115,7 +115,7 @@ impl Header {
 
     #[inline]
     pub fn verify_checksum(&self, payload: &[u8]) -> bool {
-        hash::Sha256::verify_checksum(payload, &self.checksum)
+        hash::Crc32::verify_checksum(payload, self.checksum)
     }
 
     /// Converts [`Header`] into bytes and write it into `buf`.
@@ -131,7 +131,7 @@ impl Header {
 
         buf[..4].copy_from_slice(&self.version.to_be_bytes());
         buf[4..12].copy_from_slice(&self.timestamp.timestamp_millis().to_be_bytes());
-        buf[12..HEADER_LEN].copy_from_slice(&self.checksum);
+        buf[12..HEADER_LEN].copy_from_slice(&self.checksum.to_be_bytes());
     }
 }
 
@@ -139,11 +139,12 @@ impl From<[u8; HEADER_LEN]> for Header {
     fn from(header_bytes: [u8; HEADER_LEN]) -> Self {
         let mut version = [0u8; 4];
         let mut timestamp = [0u8; 8];
-        let mut checksum = [0u8; 4];
+        let mut checksum_bytes = [0u8; 4];
 
         version.copy_from_slice(&header_bytes[..4]);
         timestamp.copy_from_slice(&header_bytes[4..12]);
-        checksum.copy_from_slice(&header_bytes[12..HEADER_LEN]);
+        checksum_bytes.copy_from_slice(&header_bytes[12..HEADER_LEN]);
+        let checksum = u32::from_be_bytes(checksum_bytes);
 
         let timestamp_number = i64::from_be_bytes(timestamp);
         let timestamp = match chrono::DateTime::from_timestamp_millis(timestamp_number) {
@@ -231,7 +232,7 @@ mod packet_test {
         Header {
             version: 1024,
             timestamp: chrono::Utc::now(),
-            checksum: [20, 80, 1, 69],
+            checksum: 340787525,
         }
     }
 
@@ -239,7 +240,7 @@ mod packet_test {
         let mut control_bytes = [0u8; HEADER_LEN];
         control_bytes[..4].copy_from_slice(&header.version().to_be_bytes());
         control_bytes[4..12].copy_from_slice(&header.timestamp.timestamp_millis().to_be_bytes());
-        control_bytes[12..HEADER_LEN].copy_from_slice(&header.checksum);
+        control_bytes[12..HEADER_LEN].copy_from_slice(&header.checksum.to_be_bytes());
 
         control_bytes
     }

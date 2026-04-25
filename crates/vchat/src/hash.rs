@@ -1,27 +1,15 @@
 use std::fmt::Display;
 
-use sha2::Digest;
-
-use crate::traits::InPlaceEndiannessConversion;
-
 #[derive(Debug)]
-pub struct Sha256;
+pub struct Crc32;
 
-impl Sha256 {
-    pub fn digest(data: &[u8]) -> Vec<u8> {
-        sha2::Sha256::digest(data).to_vec()
-    }
-
+impl Crc32 {
     /// Create a checksum with big endianess.
-    pub fn checksum(data: &[u8]) -> [u8; 4] {
-        let mut checksum = [0u8; 4];
-        checksum.copy_from_slice(&Self::digest(data)[..4]);
-        checksum.to_be();
-
-        checksum
+    pub fn checksum(data: &[u8]) -> u32 {
+        crc32fast::hash(data)
     }
 
-    pub fn verify_checksum(data: &[u8], checksum: &[u8]) -> bool {
+    pub fn verify_checksum(data: &[u8], checksum: u32) -> bool {
         Self::checksum(data) == checksum
     }
 }
