@@ -44,6 +44,9 @@ pub struct App {
     addr_input: LineTextArea,
     vchat: VChat,
 
+    public_friend_code: FriendCode,
+    local_friend_code: FriendCode,
+
     event_handle: JoinHandle<()>,
 
     runtime: tokio::runtime::Runtime,
@@ -80,6 +83,16 @@ impl App {
         ))
         .unwrap();
 
+        let public_friend_code = match FriendCode::new_public(&runtime, config.port()) {
+            Ok(fc) => fc,
+            Err(e) => panic!("Failed to get public friend code: {}", e),
+        };
+
+        let local_friend_code = match FriendCode::new_local(config.port) {
+            Ok(fc) => fc,
+            Err(e) => panic!("Failed to get local friend code: {}", e),
+        };
+
         Self {
             exit,
             error_msg: Some((String::new(), chrono::DateTime::<chrono::Utc>::MAX_UTC)),
@@ -89,6 +102,9 @@ impl App {
             state: Default::default(),
             addr_input: LineTextArea::new("".to_string(), 0),
             vchat,
+
+            public_friend_code,
+            local_friend_code,
 
             event_handle: handle,
 
@@ -323,25 +339,19 @@ impl App {
         let block = Block::new().borders(Borders::TOP).title(title);
         block.render(public_header_area, buf);
 
-        let public_friend_code_line = {
-            let public_friend_code = match FriendCode::new_public(&self.runtime, self.config.port) {
-                Ok(fc) => fc.to_string(),
-                Err(e) => format!("Failed to get public friend code: {}", e),
-            };
-            Line::from(public_friend_code).bold().red().centered()
-        };
+        let public_friend_code_line = Line::from(self.public_friend_code.as_str())
+            .bold()
+            .red()
+            .centered();
         public_friend_code_line.render(public_code_area, buf);
 
         let title = Line::from(" Local Friend Code ").bold().yellow();
         let block = Block::new().borders(Borders::TOP).title(title);
         block.render(local_header_area, buf);
-        let local_friend_code_line = {
-            let local_friend_code = match FriendCode::new_local(self.config.port) {
-                Ok(fc) => fc.to_string(),
-                Err(e) => format!("Failed to get local friend code: {}", e),
-            };
-            Line::from(local_friend_code).bold().red().centered()
-        };
+        let local_friend_code_line = Line::from(self.local_friend_code.as_str())
+            .bold()
+            .red()
+            .centered();
         local_friend_code_line.render(local_code_area, buf);
     }
 
