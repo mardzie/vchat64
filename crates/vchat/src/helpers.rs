@@ -25,6 +25,6 @@ pub fn calculate_version() -> u32 {
         )
     });
 
-    let places = (minor as f64).log(10.0).floor() as u32 + 1;
+    let places = minor.checked_ilog(10).unwrap_or(0) + 1;
     major * 10_u32.pow(places) + minor
 }
