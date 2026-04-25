@@ -212,6 +212,7 @@ mod packet_test {
         assert_eq!(packet_bytes, control_bytes);
     }
 
+    #[ignore = "Not implemented"]
     #[test]
     fn packet_from_bytes() {
         todo!("Implement packet from bytes");
