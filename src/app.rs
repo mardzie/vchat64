@@ -362,7 +362,7 @@ impl App {
             .title(title)
             .title_alignment(Alignment::Left);
 
-        if AppState::CodeInput == self.state {
+        if self.state == AppState::CodeInput {
             let instructions = Line::from(vec![" Exit Input".into(), " <ESC> ".bold().yellow()]);
             text_area_block = text_area_block.title_bottom(instructions);
         };
