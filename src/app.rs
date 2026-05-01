@@ -171,8 +171,8 @@ impl App {
         self.error_msg = Some((s, chrono::Utc::now()));
     }
 
-    fn to_app_state(&mut self) {
-        self.state = AppState::App;
+    fn to_state(&mut self, new_state: AppState) {
+        self.state = new_state;
         if self.event_channel_tx.try_send(Event::ReDraw).is_err() {
             log::warn!("Failed to issue redraw: Content may be outdated: Press any key to update.");
         };
@@ -201,12 +201,12 @@ impl App {
                             self.addr_input.clear();
                         }
 
-                        self.to_app_state();
+                        self.to_state(AppState::App);
                     } else {
                         self.addr_input.handle_event(&event)?;
                     };
                 } else {
-                    self.to_app_state();
+                    self.to_state(AppState::App);
                 };
             }
             AppState::Exit => self.handle_exit_event(&event)?,
@@ -236,11 +236,11 @@ impl App {
         match key_event.kind {
             KeyEventKind::Press => match key_event.code {
                 KeyCode::Char('q') => {
-                    self.state = AppState::Exit;
+                    self.to_state(AppState::Exit);
                     log::debug!("Into `Exit` state.");
                 }
                 KeyCode::Char('i') => {
-                    self.state = AppState::CodeInput;
+                    self.to_state(AppState::CodeInput);
                     self.addr_input.select();
                     log::debug!("Into `CodeInput` state.");
                 }
@@ -259,7 +259,7 @@ impl App {
                     self.exit.store(true, Ordering::Release);
                     log::info!("Exiting...");
                 } else if key_event.code == KEY_CODE_DECLINE {
-                    self.state = AppState::App;
+                    self.to_state(AppState::App);
                     log::info!("Canceled exiting.");
                 };
             }
