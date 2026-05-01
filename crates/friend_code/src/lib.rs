@@ -151,10 +151,18 @@ impl FriendCode {
     }
 
     pub fn to_string(&self) -> String {
-        self.0
+        self.0.clone()
     }
 
-    pub fn to_pretty_string() -> String {}
+    pub fn to_pretty_string(&self) -> String {
+        self.0
+            .chars()
+            .collect::<Vec<char>>()
+            .chunks(2)
+            .map(|chunk| chunk.iter().collect::<String>())
+            .collect::<Vec<String>>()
+            .join(" ")
+    }
 }
 
 impl From<SocketAddr> for FriendCode {

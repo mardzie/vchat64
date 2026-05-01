@@ -339,7 +339,7 @@ impl App {
         let block = Block::new().borders(Borders::TOP).title(title);
         block.render(public_header_area, buf);
 
-        let public_friend_code_line = Line::from(self.public_friend_code.as_str())
+        let public_friend_code_line = Line::from(self.public_friend_code.to_pretty_string())
             .bold()
             .red()
             .centered();
@@ -348,7 +348,7 @@ impl App {
         let title = Line::from(" Local Friend Code ").bold().yellow();
         let block = Block::new().borders(Borders::TOP).title(title);
         block.render(local_header_area, buf);
-        let local_friend_code_line = Line::from(self.local_friend_code.as_str())
+        let local_friend_code_line = Line::from(self.local_friend_code.to_pretty_string())
             .bold()
             .red()
             .centered();
