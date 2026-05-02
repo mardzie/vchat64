@@ -1,5 +1,5 @@
 use std::{
-    net::{self, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+    net::{AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
     str::FromStr,
 };
 
@@ -45,29 +45,29 @@ impl FriendCode {
         Self::new(SocketAddr::new(ip, port))
     }
 
-    pub fn from_string_addr(addr: &str) -> Result<Self, Error> {
-        let addr = SocketAddr::from_str(addr)?;
-
-        Ok(Self(addr))
-    }
-
-    pub fn from_string_ip(ip: &str, port: u16) -> Result<Self, Error> {
+    pub fn from_string_ip(ip: &str, port: u16) -> Result<Self, AddrParseError> {
         let mut addr = ip.to_string();
         addr.push(':');
         addr.push_str(&port.to_string());
         Self::from_string_addr(addr.as_str())
     }
 
+    pub fn from_string_addr(addr: &str) -> Result<Self, AddrParseError> {
+        let addr = SocketAddr::from_str(addr)?;
+
+        Ok(Self(addr))
+    }
+
     /// Takes a hexadecimal encoded binary `SocketAddr`.
     ///
     /// Valid characters include all hexadecimal digits, as well as `.`, `:` and whitespaces.
-    pub fn from_string_friend_code(fc_string: String) -> Result<Self, Error> {
+    pub fn from_string_friend_code(fc_string: String) -> Result<Self, InvalidFriendCodeString> {
         let fc_string = fc_string
             .split_whitespace()
             .collect::<String>()
             .replace(".", "")
             .replace(":", "");
-        let bytes = hex::decode(fc_string).map_err(|_| Error::InvalidFriendCodeString)?;
+        let bytes = hex::decode(fc_string).map_err(|_| InvalidFriendCodeString)?;
 
         let mut port_bytes = [0u8; 2];
         port_bytes.copy_from_slice(&bytes[bytes.len() - 2..]);
@@ -84,7 +84,7 @@ impl FriendCode {
                 octets.copy_from_slice(&bytes[..16]);
                 IpAddr::V6(Ipv6Addr::from_octets(octets))
             }
-            _ => return Err(Error::InvalidFriendCodeString),
+            _ => return Err(InvalidFriendCodeString),
         };
 
         Ok(Self::new(SocketAddr::new(ip, port)))
@@ -143,7 +143,7 @@ impl From<FriendCode> for SocketAddr {
 }
 
 impl TryFrom<&str> for FriendCode {
-    type Error = Error;
+    type Error = AddrParseError;
 
     fn try_from(addr: &str) -> Result<Self, Self::Error> {
         Self::from_string_addr(addr)
@@ -151,7 +151,7 @@ impl TryFrom<&str> for FriendCode {
 }
 
 impl TryFrom<String> for FriendCode {
-    type Error = Error;
+    type Error = AddrParseError;
 
     fn try_from(addr: String) -> Result<Self, Self::Error> {
         FriendCode::try_from(addr.as_str())
@@ -165,12 +165,8 @@ impl std::fmt::Display for FriendCode {
 }
 
 #[derive(thiserror::Error, Debug, Clone)]
-pub enum Error {
-    #[error("Address Parse Error: {0}")]
-    AddrParse(#[from] net::AddrParseError),
-    #[error("Invalid Friend Code String")]
-    InvalidFriendCodeString,
-}
+#[error("Invalid Friend Code String")]
+pub struct InvalidFriendCodeString;
 
 #[derive(thiserror::Error, Debug)]
 pub enum IpError {

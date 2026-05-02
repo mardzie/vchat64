@@ -197,7 +197,7 @@ impl App {
                     {
                         let buf = self.addr_input.get_buf().to_string();
                         if let Ok(fc) = FriendCode::from_string_friend_code(buf) {
-                            self.vchat.add_address(fc.to_socket_addr());
+                            self.vchat.add_address(fc.into_socket_addr());
                             self.addr_input.clear();
                         }
 
