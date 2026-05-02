@@ -3,8 +3,6 @@
 use color_eyre::Result;
 
 mod app;
-mod helpers;
-mod state;
 
 use crate::app::App;
 

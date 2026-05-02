@@ -22,34 +22,31 @@ use vchat::VChat;
 pub mod config;
 
 mod app_events;
+mod context;
+mod helpers;
+mod state;
+mod states;
 mod widgets;
 
 use crate::{
     CHILL_TIMEOUT,
-    app::{app_events::Event, config::Config, widgets::line_text_area::LineTextArea},
-    helpers::should_exit,
-    state::AppState,
+    app::{
+        app_events::Event, config::Config, context::AppContext, helpers::should_exit,
+        state::AppState, widgets::line_text_area::LineTextArea,
+    },
 };
 
 pub const KEY_CODE_ACCEPT: KeyCode = KeyCode::Enter;
 pub const KEY_CODE_DECLINE: KeyCode = KeyCode::Esc;
 
+#[derive(Debug)]
 pub struct App {
-    exit: Arc<AtomicBool>,
-    error_msg: Option<(String, chrono::DateTime<chrono::Utc>)>,
-    config: Config,
-    event_channel_tx: sync::mpsc::SyncSender<Event>,
-    event_channel_rx: sync::mpsc::Receiver<Event>,
-    state: AppState,
-    addr_input: LineTextArea,
-    vchat: VChat,
+    ctx: AppContext,
 
-    public_friend_code: FriendCode,
-    local_friend_code: FriendCode,
+    event_channel_rx: sync::mpsc::Receiver<Event>,
+    addr_input: LineTextArea,
 
     event_handle: JoinHandle<()>,
-
-    runtime: tokio::runtime::Runtime,
 }
 
 impl App {
