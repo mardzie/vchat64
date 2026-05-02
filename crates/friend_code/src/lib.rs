@@ -1,7 +1,4 @@
-use std::{
-    net::{AddrParseError, IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
-    str::FromStr,
-};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
 pub const IPV4_BYTES_COUNT: usize = 4;
 pub const IPV6_BYTES_COUNT: usize = 16;
@@ -45,23 +42,10 @@ impl FriendCode {
         Self::new(SocketAddr::new(ip, port))
     }
 
-    pub fn from_string_ip(ip: &str, port: u16) -> Result<Self, AddrParseError> {
-        let mut addr = ip.to_string();
-        addr.push(':');
-        addr.push_str(&port.to_string());
-        Self::from_string_addr(addr.as_str())
-    }
-
-    pub fn from_string_addr(addr: &str) -> Result<Self, AddrParseError> {
-        let addr = SocketAddr::from_str(addr)?;
-
-        Ok(Self(addr))
-    }
-
     /// Takes a hexadecimal encoded binary `SocketAddr`.
     ///
     /// Valid characters include all hexadecimal digits, as well as `.`, `:` and whitespaces.
-    pub fn from_string_friend_code(fc_string: String) -> Result<Self, InvalidFriendCodeString> {
+    pub fn from_string_friend_code(fc_string: &str) -> Result<Self, InvalidFriendCodeString> {
         let fc_string = fc_string
             .split_whitespace()
             .collect::<String>()
@@ -71,18 +55,20 @@ impl FriendCode {
 
         let mut port_bytes = [0u8; 2];
         port_bytes.copy_from_slice(&bytes[bytes.len() - 2..]);
-        let port = u16::from_le_bytes(port_bytes);
+        let port = u16::from_be_bytes(port_bytes);
 
         let ip = match bytes.len() {
             IPV4_ADDR_BYTES_COUNT => {
                 let mut octets = [0u8; 4];
                 octets.copy_from_slice(&bytes[..4]);
-                IpAddr::V4(Ipv4Addr::from_octets(octets))
+                let bits = u32::from_be_bytes(octets);
+                IpAddr::V4(Ipv4Addr::from_bits(bits))
             }
             IPV6_ADDR_BYTES_COUNT => {
                 let mut octets = [0u8; 16];
                 octets.copy_from_slice(&bytes[..16]);
-                IpAddr::V6(Ipv6Addr::from_octets(octets))
+                let bits = u128::from_be_bytes(octets);
+                IpAddr::V6(Ipv6Addr::from_bits(bits))
             }
             _ => return Err(InvalidFriendCodeString),
         };
@@ -102,15 +88,15 @@ impl FriendCode {
         let bytes = match self.0.ip() {
             IpAddr::V4(v4) => {
                 let mut bytes = vec![0u8; IPV4_ADDR_BYTES_COUNT];
-                bytes[..4].copy_from_slice(&v4.to_bits().to_le_bytes());
-                bytes[4..].copy_from_slice(&self.0.port().to_le_bytes());
+                bytes[..4].copy_from_slice(&v4.to_bits().to_be_bytes());
+                bytes[4..].copy_from_slice(&self.0.port().to_be_bytes());
 
                 bytes
             }
             IpAddr::V6(v6) => {
                 let mut bytes = vec![0u8; IPV6_ADDR_BYTES_COUNT];
-                bytes[..16].copy_from_slice(&v6.to_bits().to_le_bytes());
-                bytes[16..].copy_from_slice(&self.0.port().to_le_bytes());
+                bytes[..16].copy_from_slice(&v6.to_bits().to_be_bytes());
+                bytes[16..].copy_from_slice(&self.0.port().to_be_bytes());
 
                 bytes
             }
@@ -121,6 +107,7 @@ impl FriendCode {
 
     pub fn to_pretty_string(&self) -> String {
         self.to_string()
+            .to_uppercase()
             .chars()
             .collect::<Vec<char>>()
             .chunks(2)
@@ -143,18 +130,10 @@ impl From<FriendCode> for SocketAddr {
 }
 
 impl TryFrom<&str> for FriendCode {
-    type Error = AddrParseError;
+    type Error = InvalidFriendCodeString;
 
-    fn try_from(addr: &str) -> Result<Self, Self::Error> {
-        Self::from_string_addr(addr)
-    }
-}
-
-impl TryFrom<String> for FriendCode {
-    type Error = AddrParseError;
-
-    fn try_from(addr: String) -> Result<Self, Self::Error> {
-        FriendCode::try_from(addr.as_str())
+    fn try_from(fc: &str) -> Result<Self, Self::Error> {
+        FriendCode::from_string_friend_code(fc)
     }
 }
 
@@ -187,10 +166,10 @@ mod friend_code_test {
         let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 69);
         let friend_code_addr = FriendCode::new(addr);
 
-        let fc = "7F 00 00 01 45".to_string();
+        let fc = "7F 00 00 01 00 45".to_string();
         assert_eq!(fc, friend_code_addr.to_pretty_string());
 
-        let friend_code = FriendCode::from_string_addr(&fc).unwrap();
+        let friend_code = FriendCode::from_string_friend_code(&fc).unwrap();
         assert_eq!(&addr, friend_code.to_socket_addr());
     }
 
@@ -199,10 +178,10 @@ mod friend_code_test {
         let addr = SocketAddr::new(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)), 5000);
         let friend_code_addr = FriendCode::new(addr);
 
-        let fc = "00 00 00 00 00 00 00 01 13 88".to_string();
+        let fc = "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01 13 88".to_string();
         assert_eq!(fc, friend_code_addr.to_pretty_string());
 
-        let friend_code = FriendCode::from_string_addr(&fc).unwrap();
+        let friend_code = FriendCode::from_string_friend_code(&fc).unwrap();
         assert_eq!(&addr, friend_code.to_socket_addr());
     }
 }
