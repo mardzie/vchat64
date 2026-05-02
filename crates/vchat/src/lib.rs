@@ -25,6 +25,7 @@ mod voice_net;
 pub const AUDIO_CHANNELS_BUF_SIZE: usize = 1024 * 16;
 pub const TIMEOUT: std::time::Duration = std::time::Duration::from_millis(10);
 
+#[derive(Debug)]
 pub struct VChat {
     audio: Arc<Audio>,
     voice_net: ArcMutex<VoiceNet>,

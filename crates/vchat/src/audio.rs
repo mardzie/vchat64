@@ -498,3 +498,15 @@ mod audio_test {
         (buf, tx, rx)
     }
 }
+
+impl Debug for Audio {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Audio")
+            .field("host", &self.host.id())
+            .field("input", &self.input)
+            .field("output", &self.output)
+            .field("audio_processor", &self.audio_processor)
+            .field("volume", &self.volume)
+            .finish()
+    }
+}

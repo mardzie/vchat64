@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use cpal::{
     Device, Host, PauseStreamError, PlayStreamError, Stream, SupportedStreamConfig,
     traits::{DeviceTrait, HostTrait, StreamTrait},
@@ -105,5 +107,14 @@ impl InputStream {
 
     pub fn config(&self) -> &SupportedStreamConfig {
         &self.config
+    }
+}
+
+impl Debug for InputStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InputStream")
+            .field("device", &self.device.id())
+            .field("config", &self.config)
+            .finish()
     }
 }
