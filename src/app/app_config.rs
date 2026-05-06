@@ -1,9 +1,11 @@
-#[derive(Debug)]
-pub struct Config {
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AppConfig {
     pub port: u16,
 }
 
-impl Config {
+impl AppConfig {
     pub fn new(port: u16) -> Self {
         Self { port }
     }

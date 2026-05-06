@@ -13,7 +13,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Clear, List, Widget},
 };
 
-pub mod config;
+pub mod app_config;
 
 mod app_events;
 mod context;
@@ -25,7 +25,7 @@ mod widgets;
 use crate::{
     CHILL_TIMEOUT,
     app::{
-        app_events::Event, config::Config, context::AppContext, helpers::load_atomic_bool,
+        app_events::Event, app_config::AppConfig, context::AppContext, helpers::load_atomic_bool,
         state::AppState,
     },
 };
@@ -46,7 +46,7 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         let args: Vec<String> = std::env::args().collect();
-        let config = Config::new(
+        let config = AppConfig::new(
             args.get(1)
                 .map(|x| {
                     x.parse::<u16>()

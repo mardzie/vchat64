@@ -21,14 +21,18 @@ tracing-subscriber = "0.3.23"
 
 [dependencies]
 chrono.workspace = true
+clap = { version = "4.6.1", features = ["derive"] }
 color-eyre.workspace = true
+config = "0.15.22"
 crossterm = "0.29.0"
 env_logger = "0.11.10"
 friend_code.path = "crates/friend_code"
 log.workspace = true
 ratatui = "0.30.0"
+serde = { version = "1.0.228", features = ["derive"] }
 thiserror.workspace = true
 tokio.workspace = true
+toml = "0.9.8"
 tracing = "0.1.44"
 tracing-subscriber.workspace = true
 vchat.path = "crates/vchat"

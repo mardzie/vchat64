@@ -9,7 +9,7 @@ use vchat::VChat;
 
 use crate::app::{
     app_events::Event,
-    config::Config,
+    app_config::AppConfig,
     helpers::{load_atomic_bool, store_atomic_bool},
     state::AppState,
     widgets::line_text_area::LineTextArea,
@@ -19,7 +19,7 @@ use crate::app::{
 pub struct AppContext {
     pub exit: Arc<AtomicBool>,
     pub state: AppState,
-    pub config: Config,
+    pub config: AppConfig,
 
     pub error_msg: Option<(String, chrono::DateTime<chrono::Utc>)>,
     pub event_tx: sync::mpsc::SyncSender<Event>,
@@ -34,7 +34,7 @@ pub struct AppContext {
 }
 
 impl AppContext {
-    pub fn new(state: AppState, config: Config, event_tx: SyncSender<Event>) -> Self {
+    pub fn new(state: AppState, config: AppConfig, event_tx: SyncSender<Event>) -> Self {
         let runtime = runtime::Builder::new_current_thread()
             .worker_threads(1)
             .enable_all()
