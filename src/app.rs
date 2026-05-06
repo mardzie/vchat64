@@ -1,10 +1,5 @@
 use std::{
-    net::SocketAddr,
-    sync::{
-        self, Arc,
-        atomic::{self, AtomicBool, Ordering},
-        mpsc::SyncSender,
-    },
+    sync::{self, Arc, atomic::AtomicBool, mpsc::SyncSender},
     thread::{self, JoinHandle},
 };
 
@@ -17,7 +12,6 @@ use ratatui::{
     text::Line,
     widgets::{Block, BorderType, Borders, Clear, List, Widget},
 };
-use vchat::VChat;
 
 pub mod config;
 
@@ -31,33 +25,26 @@ mod widgets;
 use crate::{
     CHILL_TIMEOUT,
     app::{
-        app_events::Event, config::Config, context::AppContext, helpers::should_exit,
-        state::AppState, widgets::line_text_area::LineTextArea,
+        app_events::Event, config::Config, context::AppContext, helpers::load_atomic_bool,
+        state::AppState,
     },
 };
 
 pub const KEY_CODE_ACCEPT: KeyCode = KeyCode::Enter;
 pub const KEY_CODE_DECLINE: KeyCode = KeyCode::Esc;
 
+pub const EVENT_QUEUE_SIZE: usize = 8;
+
 #[derive(Debug)]
 pub struct App {
     ctx: AppContext,
 
     event_channel_rx: sync::mpsc::Receiver<Event>,
-    addr_input: LineTextArea,
-
     event_handle: JoinHandle<()>,
 }
 
 impl App {
     pub fn new() -> Self {
-        let exit = Arc::new(atomic::AtomicBool::new(false));
-        let (tx, rx) = std::sync::mpsc::sync_channel(2);
-
-        let tx_c = tx.clone();
-        let exit_c = exit.clone();
-        let handle = thread::spawn(move || Self::crossterm_event_reader(tx_c, exit_c));
-
         let args: Vec<String> = std::env::args().collect();
         let config = Config::new(
             args.get(1)
@@ -68,65 +55,39 @@ impl App {
                 .unwrap_or(22000),
         );
 
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .worker_threads(1)
-            .enable_all()
-            .build()
-            .expect("Failed to build tokio runtime!");
+        let (event_tx, event_rx) = std::sync::mpsc::sync_channel(EVENT_QUEUE_SIZE);
+        let ctx = AppContext::new(AppState::App, config, event_tx.clone());
 
-        let vchat = VChat::new(SocketAddr::new(
-            std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
-            config.port(),
-        ))
-        .unwrap();
-
-        let public_friend_code = match FriendCode::new_public(&runtime, config.port()) {
-            Ok(fc) => fc,
-            Err(e) => panic!("Failed to get public friend code: {}", e),
-        };
-
-        let local_friend_code = match FriendCode::new_local(config.port) {
-            Ok(fc) => fc,
-            Err(e) => panic!("Failed to get local friend code: {}", e),
-        };
+        let exit_c = ctx.exit.clone();
+        let handle = thread::spawn(move || Self::crossterm_event_reader(event_tx, exit_c));
 
         Self {
-            exit,
-            error_msg: Some((String::new(), chrono::DateTime::<chrono::Utc>::MAX_UTC)),
-            config,
-            event_channel_tx: tx,
-            event_channel_rx: rx,
-            state: Default::default(),
-            addr_input: LineTextArea::new("".to_string(), 0),
-            vchat,
+            ctx,
 
-            public_friend_code,
-            local_friend_code,
-
+            event_channel_rx: event_rx,
             event_handle: handle,
-
-            runtime,
         }
     }
 
     pub fn run(&mut self, terminal: &mut ratatui::DefaultTerminal) -> Result<()> {
         log::info!("VChat64 running...");
 
-        self.vchat.audio().play();
+        self.ctx.vchat.audio().play();
 
-        while !should_exit(&self.exit) {
+        while !self.ctx.get_exit() {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_event()?;
         }
 
-        self.vchat.audio().pause();
+        self.ctx.vchat.audio().pause();
 
         Ok(())
     }
 
-    fn crossterm_event_reader(event_reader: SyncSender<Event>, exit: Arc<AtomicBool>) {
+    /// Handles all incoming crossterm events and forwards them to the apps event handler.
+    fn crossterm_event_reader(event_tx: SyncSender<Event>, exit: Arc<AtomicBool>) {
         loop {
-            if should_exit(&exit) {
+            if load_atomic_bool(&exit) {
                 break;
             };
 
@@ -150,7 +111,7 @@ impl App {
                 }
             };
 
-            if event_reader.send(event).is_err() {
+            if event_tx.send(event).is_err() {
                 log::error!("Crossterm Event Reader: Reading channel closed.");
                 break;
             };
@@ -160,19 +121,8 @@ impl App {
     }
 
     pub fn stop(self) {
-        self.vchat.stop();
+        self.ctx.vchat.stop();
         let _ = self.event_handle.join();
-    }
-
-    fn set_error(&mut self, s: String) {
-        self.error_msg = Some((s, chrono::Utc::now()));
-    }
-
-    fn to_state(&mut self, new_state: AppState) {
-        self.state = new_state;
-        if self.event_channel_tx.try_send(Event::ReDraw).is_err() {
-            log::warn!("Failed to issue redraw: Content may be outdated: Press any key to update.");
-        };
     }
 
     pub fn handle_event(&mut self) -> Result<()> {
@@ -185,36 +135,36 @@ impl App {
             }
         };
 
-        match &self.state {
+        match &self.ctx.get_state() {
             AppState::App => self.handle_app_event(&event)?,
             AppState::CodeInput => {
-                if self.addr_input.selected() {
+                if self.ctx.addr_input.selected() {
                     if let event::Event::Key(key_event) = &event
                         && key_event.code == KeyCode::Enter
                     {
-                        let buf = self.addr_input.get_buf().to_string();
+                        let buf = self.ctx.addr_input.get_buf().to_string();
                         if let Ok(fc) = FriendCode::from_string_friend_code(&buf) {
-                            self.vchat.add_address(fc.into_socket_addr());
-                            self.addr_input.clear();
+                            self.ctx.vchat.add_address(fc.into_socket_addr());
+                            self.ctx.addr_input.clear();
                         }
 
-                        self.to_state(AppState::App);
+                        self.ctx.to_state(AppState::App);
                     } else {
-                        self.addr_input.handle_event(&event)?;
+                        self.ctx.addr_input.handle_event(&event)?;
                     };
                 } else {
-                    self.to_state(AppState::App);
+                    self.ctx.to_state(AppState::App);
                 };
             }
             AppState::Exit => self.handle_exit_event(&event)?,
         };
 
-        if let Some((err, timestamp)) = &self.error_msg
+        if let Some((err, timestamp)) = &self.ctx.get_error()
             && *timestamp
                 + chrono::Duration::seconds((2 * err.split_ascii_whitespace().count()) as i64)
                 < chrono::Utc::now()
         {
-            self.error_msg = None;
+            self.ctx.set_error(None);
         };
 
         Ok(())
@@ -233,12 +183,12 @@ impl App {
         match key_event.kind {
             KeyEventKind::Press => match key_event.code {
                 KeyCode::Char('q') => {
-                    self.to_state(AppState::Exit);
+                    self.ctx.to_state(AppState::Exit);
                     log::debug!("Into `Exit` state.");
                 }
                 KeyCode::Char('i') => {
-                    self.to_state(AppState::CodeInput);
-                    self.addr_input.select();
+                    self.ctx.to_state(AppState::CodeInput);
+                    self.ctx.addr_input.select();
                     log::debug!("Into `CodeInput` state.");
                 }
                 _ => {}
@@ -253,10 +203,10 @@ impl App {
         match event {
             event::Event::Key(key_event) => {
                 if key_event.code == KEY_CODE_ACCEPT {
-                    self.exit.store(true, Ordering::Release);
+                    self.ctx.set_exit(true);
                     log::info!("Exiting...");
                 } else if key_event.code == KEY_CODE_DECLINE {
-                    self.to_state(AppState::App);
+                    self.ctx.to_state(AppState::App);
                     log::info!("Canceled exiting.");
                 };
             }
@@ -336,7 +286,7 @@ impl App {
         let block = Block::new().borders(Borders::TOP).title(title);
         block.render(public_header_area, buf);
 
-        let public_friend_code_line = Line::from(self.public_friend_code.to_pretty_string())
+        let public_friend_code_line = Line::from(self.ctx.public_friend_code.to_pretty_string())
             .bold()
             .red()
             .centered();
@@ -345,7 +295,7 @@ impl App {
         let title = Line::from(" Local Friend Code ").bold().yellow();
         let block = Block::new().borders(Borders::TOP).title(title);
         block.render(local_header_area, buf);
-        let local_friend_code_line = Line::from(self.local_friend_code.to_pretty_string())
+        let local_friend_code_line = Line::from(self.ctx.local_friend_code.to_pretty_string())
             .bold()
             .red()
             .centered();
@@ -359,7 +309,7 @@ impl App {
             .title(title)
             .title_alignment(Alignment::Left);
 
-        if self.state == AppState::CodeInput {
+        if self.ctx.get_state() == &AppState::CodeInput {
             let instructions = Line::from(vec![" Exit Input".into(), " <ESC> ".bold().yellow()]);
             text_area_block = text_area_block.title_bottom(instructions);
         };
@@ -367,7 +317,7 @@ impl App {
         let text_area_block_area = text_area_block.inner(area);
         text_area_block.render(area, buf);
 
-        self.addr_input.render(text_area_block_area, buf);
+        self.ctx.addr_input.render(text_area_block_area, buf);
     }
 
     fn render_error_area(&self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
@@ -379,7 +329,7 @@ impl App {
             .border_type(BorderType::Plain);
         block.render(block_area, buf);
 
-        let line = if let Some((e, _)) = &self.error_msg {
+        let line = if let Some((e, _)) = &self.ctx.get_error() {
             Line::from(e.as_ref()).on_red().white()
         } else {
             Line::from("")
@@ -396,6 +346,7 @@ impl App {
         block.render(area, buf);
 
         let addresses: Vec<String> = self
+            .ctx
             .vchat
             .get_addresses()
             .read()
@@ -456,7 +407,7 @@ impl Widget for &App {
         self.render_main_area(main_area, buf);
         self.render_call_area(call_area, buf);
 
-        match self.state {
+        match self.ctx.get_state() {
             AppState::Exit => self.render_exit_area(area, buf),
             _ => {}
         };

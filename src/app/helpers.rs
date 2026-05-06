@@ -1,7 +1,12 @@
-use std::sync::{Arc, atomic::AtomicBool};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
-/// Get value of exit.
-#[inline(always)]
-pub fn should_exit(exit: &Arc<AtomicBool>) -> bool {
-    exit.load(std::sync::atomic::Ordering::Relaxed)
+pub fn load_atomic_bool(atomic: &Arc<AtomicBool>) -> bool {
+    atomic.load(Ordering::Acquire)
+}
+
+pub fn store_atomic_bool(atomic: &Arc<AtomicBool>, val: bool) {
+    atomic.store(val, Ordering::Release);
 }
