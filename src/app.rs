@@ -5,10 +5,7 @@ use std::{
 
 use color_eyre::eyre::Result;
 use crossterm::event::{self, KeyCode};
-use ratatui::{
-    layout::{Constraint, Layout},
-    widgets::Widget,
-};
+use ratatui::widgets::Widget;
 
 pub mod app_config;
 
