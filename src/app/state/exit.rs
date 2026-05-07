@@ -1,17 +1,20 @@
-use crate::app::{context::AppContext, state::AppState};
-use color_eyre::Result;
+use crate::app::state::{Exit, State};
 
-pub trait State {
+impl State for Exit {
     fn handle_event(
         &mut self,
         ctx: &mut AppContext,
         event: crossterm::event::Event,
-    ) -> Result<Option<AppState>>;
+    ) -> Result<Option<super::AppState>> {
+        todo!()
+    }
 
     fn render(
         &self,
         ctx: &mut AppContext,
         area: ratatui::layout::Rect,
         buf: &mut ratatui::buffer::Buffer,
-    );
+    ) {
+        todo!()
+    }
 }
