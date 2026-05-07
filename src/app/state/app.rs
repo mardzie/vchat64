@@ -180,13 +180,17 @@ impl State for App {
         buf: &mut ratatui::buffer::Buffer,
     ) {
         let title = Line::from(" VChat64 ").left_aligned().bold().yellow();
-        let instructions = Line::from(vec![
-            " Quit".into(),
-            " <Q> ".bold().yellow(),
-            " Input FC".into(),
-            " <I> ".bold().yellow(),
-        ])
-        .left_aligned();
+
+        let options: Vec<ratatui::prelude::Span<'_>> = std::iter::empty()
+            .chain([" Quit".into(), " <Q> ".bold().yellow()])
+            .chain(
+                (!matches!(ctx.get_state(), AppState::CodeInput(_)))
+                    .then_some([" Input FC".into(), " <I> ".bold().yellow()])
+                    .into_iter()
+                    .flatten(),
+            )
+            .collect();
+        let instructions = Line::from(options).left_aligned();
         let block = Block::bordered()
             .border_type(BorderType::Plain)
             .title(title)
