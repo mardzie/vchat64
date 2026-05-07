@@ -2,7 +2,7 @@ use color_eyre::Result;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{style::Stylize, text::Line, widgets::Widget};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct LineTextArea {
     selected: bool,
     buf: String,
@@ -84,7 +84,7 @@ impl LineTextArea {
                     };
                 }
                 KeyCode::Backspace => {
-                    if 0 < self.pos {
+                    if self.pos > 0 {
                         let _ = self.buf.remove(self.pos - 1);
                         self.pos -= 1;
                     };
