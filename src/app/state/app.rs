@@ -1,17 +1,20 @@
-use crate::app::state::{App, State};
+use crate::app::state::State;
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct App;
 
 impl State for App {
     fn handle_event(
         &mut self,
-        ctx: &mut AppContext,
+        ctx: &mut crate::app::context::AppContext,
         event: crossterm::event::Event,
-    ) -> Result<Option<super::AppState>> {
+    ) -> color_eyre::Result<Option<super::AppState>> {
         todo!()
     }
 
     fn render(
         &self,
-        ctx: &mut AppContext,
+        ctx: &mut crate::app::context::AppContext,
         area: ratatui::layout::Rect,
         buf: &mut ratatui::buffer::Buffer,
     ) {

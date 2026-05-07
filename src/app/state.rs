@@ -1,3 +1,5 @@
+use crate::app::state::{app::App, code_input::CodeInput, exit::Exit};
+
 mod app;
 mod code_input;
 mod exit;
@@ -43,12 +45,3 @@ impl Default for AppState {
         Self::App(App::default())
     }
 }
-
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct App;
-
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct CodeInput;
-
-#[derive(Debug, Default, PartialEq, Eq)]
-pub struct Exit;

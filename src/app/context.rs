@@ -8,8 +8,8 @@ use tokio::runtime;
 use vchat::VChat;
 
 use crate::app::{
-    app_events::Event,
     app_config::AppConfig,
+    app_events::Event,
     helpers::{load_atomic_bool, store_atomic_bool},
     state::AppState,
     widgets::line_text_area::LineTextArea,
