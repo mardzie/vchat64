@@ -24,7 +24,7 @@ mod widgets;
 use crate::{
     CHILL_TIMEOUT,
     app::{
-        app_events::Event, app_config::AppConfig, context::AppContext, helpers::load_atomic_bool,
+        app_config::AppConfig, app_events::Event, context::AppContext, helpers::load_atomic_bool,
         state::AppState,
     },
 };
@@ -55,7 +55,7 @@ impl App {
         );
 
         let (event_tx, event_rx) = std::sync::mpsc::sync_channel(EVENT_QUEUE_SIZE);
-        let ctx = AppContext::new(AppState::App, config, event_tx.clone());
+        let ctx = AppContext::new(AppState::new_app(), config, event_tx.clone());
 
         let exit_c = ctx.exit.clone();
         let handle = thread::spawn(move || Self::crossterm_event_reader(event_tx, exit_c));
@@ -135,8 +135,8 @@ impl App {
         };
 
         match &self.ctx.get_state() {
-            AppState::App => self.handle_app_event(&event)?,
-            AppState::CodeInput => {
+            AppState::App(_) => self.handle_app_event(&event)?,
+            AppState::CodeInput(_) => {
                 if self.ctx.addr_input.selected() {
                     if let event::Event::Key(key_event) = &event
                         && key_event.code == KeyCode::Enter
@@ -147,15 +147,15 @@ impl App {
                             self.ctx.addr_input.clear();
                         }
 
-                        self.ctx.to_state(AppState::App);
+                        self.ctx.to_state(AppState::new_app());
                     } else {
                         self.ctx.addr_input.handle_event(&event)?;
                     };
                 } else {
-                    self.ctx.to_state(AppState::App);
+                    self.ctx.to_state(AppState::new_app());
                 };
             }
-            AppState::Exit => self.handle_exit_event(&event)?,
+            AppState::Exit(_) => self.handle_exit_event(&event)?,
         };
 
         if let Some((err, timestamp)) = &self.ctx.get_error()
@@ -182,11 +182,11 @@ impl App {
         match key_event.kind {
             KeyEventKind::Press => match key_event.code {
                 KeyCode::Char('q') => {
-                    self.ctx.to_state(AppState::Exit);
+                    self.ctx.to_state(AppState::new_exit());
                     log::debug!("Into `Exit` state.");
                 }
                 KeyCode::Char('i') => {
-                    self.ctx.to_state(AppState::CodeInput);
+                    self.ctx.to_state(AppState::new_code_input());
                     self.ctx.addr_input.select();
                     log::debug!("Into `CodeInput` state.");
                 }
@@ -205,7 +205,7 @@ impl App {
                     self.ctx.set_exit(true);
                     log::info!("Exiting...");
                 } else if key_event.code == KEY_CODE_DECLINE {
-                    self.ctx.to_state(AppState::App);
+                    self.ctx.to_state(AppState::new_app());
                     log::info!("Canceled exiting.");
                 };
             }
@@ -308,7 +308,7 @@ impl App {
             .title(title)
             .title_alignment(Alignment::Left);
 
-        if self.ctx.get_state() == &AppState::CodeInput {
+        if matches!(self.ctx.get_state(), AppState::CodeInput(_)) {
             let instructions = Line::from(vec![" Exit Input".into(), " <ESC> ".bold().yellow()]);
             text_area_block = text_area_block.title_bottom(instructions);
         };
@@ -407,7 +407,7 @@ impl Widget for &App {
         self.render_call_area(call_area, buf);
 
         match self.ctx.get_state() {
-            AppState::Exit => self.render_exit_area(area, buf),
+            AppState::Exit(_) => self.render_exit_area(area, buf),
             _ => {}
         };
     }

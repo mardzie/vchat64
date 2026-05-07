@@ -2,34 +2,53 @@ mod app;
 mod code_input;
 mod exit;
 
-#[derive(Debug, Default, PartialEq, Eq)]
+pub trait State {
+    fn handle_event(
+        &mut self,
+        ctx: &mut crate::app::context::AppContext,
+        event: crossterm::event::Event,
+    ) -> color_eyre::Result<Option<AppState>>;
+
+    fn render(
+        &self,
+        ctx: &mut crate::app::context::AppContext,
+        area: ratatui::layout::Rect,
+        buf: &mut ratatui::buffer::Buffer,
+    );
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum AppState {
-    #[default]
     App(App),
     CodeInput(CodeInput),
     Exit(Exit),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+impl AppState {
+    pub fn new_app() -> Self {
+        Self::App(App::default())
+    }
+
+    pub fn new_code_input() -> Self {
+        Self::CodeInput(CodeInput::default())
+    }
+
+    pub fn new_exit() -> Self {
+        Self::Exit(Exit::default())
+    }
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self::App(App::default())
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct App;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct CodeInput;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct Exit;
-
-pub trait State {
-    fn handle_event(
-        &mut self,
-        ctx: &mut AppContext,
-        event: crossterm::event::Event,
-    ) -> Result<Option<AppState>>;
-
-    fn render(
-        &self,
-        ctx: &mut AppContext,
-        area: ratatui::layout::Rect,
-        buf: &mut ratatui::buffer::Buffer,
-    );
-}
