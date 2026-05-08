@@ -49,7 +49,7 @@ impl OutputStream {
             },
         };
 
-        log::info!("New OutputStream created.");
+        tracing::info!("New OutputStream created.");
 
         Ok(Self {
             device,

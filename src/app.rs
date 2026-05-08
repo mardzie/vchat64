@@ -36,7 +36,7 @@ pub struct App {
     ctx: AppContext,
 
     event_channel_rx: sync::mpsc::Receiver<Event>,
-    event_handle: JoinHandle<()>,
+    event_handler_handle: JoinHandle<()>,
 }
 
 impl App {
@@ -55,18 +55,21 @@ impl App {
         let ctx = AppContext::new(AppState::app(), config, event_tx.clone());
 
         let exit_c = ctx.exit.clone();
-        let handle = thread::spawn(move || Self::crossterm_event_reader(event_tx, exit_c));
+        let event_handler_handle = thread::Builder::new()
+            .name("Crossterm Event Handler".to_string())
+            .spawn(move || Self::crossterm_event_reader(event_tx, exit_c))
+            .expect("Failed to build Crossterm Event Handler thread!");
 
         Self {
             ctx,
 
             event_channel_rx: event_rx,
-            event_handle: handle,
+            event_handler_handle,
         }
     }
 
     pub fn run(&mut self, terminal: &mut ratatui::DefaultTerminal) -> Result<()> {
-        log::info!("VChat64 running...");
+        tracing::info!("VChat64 running...");
 
         self.ctx.vchat.audio().play();
 
@@ -91,7 +94,7 @@ impl App {
                 Ok(x) if x => {}
                 Ok(_) => continue,
                 Err(e) => {
-                    log::error!(
+                    tracing::error!(
                         "Crossterm Event Reader: Caught Error while polling for crossterm event: {}",
                         e
                     );
@@ -102,23 +105,23 @@ impl App {
             let event = match event::read() {
                 Ok(event) => event.into(),
                 Err(e) => {
-                    log::error!("Failed to read terminal event: {}", e);
+                    tracing::error!("Failed to read terminal event: {}", e);
                     continue;
                 }
             };
 
             if event_tx.send(event).is_err() {
-                log::error!("Crossterm Event Reader: Reading channel closed.");
+                tracing::error!("Crossterm Event Reader: Reading channel closed.");
                 break;
             };
         }
 
-        log::debug!("Crossterm Event Reader: Shutting down...");
+        tracing::debug!("Crossterm Event Reader: Shutting down...");
     }
 
     pub fn stop(self) {
         self.ctx.vchat.stop();
-        let _ = self.event_handle.join();
+        let _ = self.event_handler_handle.join();
     }
 
     pub fn handle_event(&mut self) -> Result<()> {

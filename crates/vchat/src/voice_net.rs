@@ -59,7 +59,7 @@ impl VoiceNet {
         match self.read_packet() {
             Ok(_) => {}
             Err(e) => {
-                log::warn!("Failed to read packet: {}", e);
+                tracing::warn!("Failed to read packet: {}", e);
             }
         }
 

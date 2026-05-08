@@ -57,16 +57,19 @@ impl VChat {
         let audio_c = audio.clone();
         let voice_net_c = voice_net.clone();
         let addresses_c = addresses.clone();
-        let udp_bridge_handle = thread::spawn(move || {
-            Self::udp_bridge(
-                voice_net_c,
-                addresses_c,
-                input_notify_rx,
-                consumer,
-                speaker_input_tx,
-                audio_c,
-            )
-        });
+        let udp_bridge_handle = thread::Builder::new()
+            .name("UDP Bridge".to_string())
+            .spawn(move || {
+                Self::udp_bridge(
+                    voice_net_c,
+                    addresses_c,
+                    input_notify_rx,
+                    consumer,
+                    speaker_input_tx,
+                    audio_c,
+                )
+            })
+            .expect("Failed to build UDP Bridge thread!");
 
         audio.play();
 
@@ -113,7 +116,7 @@ impl VChat {
             };
         }
 
-        log::warn!("UDP Bridge: Closed")
+        tracing::warn!("UDP Bridge: Closed")
     }
 
     fn input_udp_bridge(
@@ -151,7 +154,7 @@ impl VChat {
             .collect();
 
         if !byte_packets.is_empty() {
-            log::trace!(
+            tracing::trace!(
                 "Input UDP Bridge: Preparing {} packet {} bytes.",
                 byte_packets.len(),
                 byte_packets[0].len()
@@ -169,10 +172,10 @@ impl VChat {
                 if let Err(e) = voice_net_lock.send(bytes.clone(), addr) {
                     match e {
                         voice_net::error::SendError::WouldBlock => {
-                            log::warn!("Input UDP Bridge: Failed to send `Packet` to {}", addr);
+                            tracing::warn!("Input UDP Bridge: Failed to send `Packet` to {}", addr);
                         }
                         voice_net::error::SendError::Io(e) => {
-                            log::warn!(
+                            tracing::warn!(
                                 "Inptu UDP Bridge: Failed to send `Packet` to {}: {}",
                                 addr,
                                 e
@@ -203,7 +206,7 @@ impl VChat {
             }
         };
 
-        log::trace!(
+        tracing::trace!(
             "UDP Output Bridge: Got message from {} with size {}",
             addr,
             bytes.len()
@@ -223,7 +226,7 @@ impl VChat {
         match output_tx.send(samples) {
             Ok(_) => {}
             Err(e) => {
-                log::warn!("UDP Output Bridge: Output device closed channel: {}", e);
+                tracing::warn!("UDP Output Bridge: Output device closed channel: {}", e);
                 return Err(());
             }
         };
@@ -279,7 +282,7 @@ impl VChat {
 
     pub fn stop(self) {
         if let Err(e) = self.exit_notify.send(InputMessage::Exit) {
-            log::error!("Failed to send exit notification to audio thread: {}", e);
+            tracing::error!("Failed to send exit notification to audio thread: {}", e);
         };
 
         let _ = self.udp_bridge_handle.join();

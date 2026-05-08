@@ -150,7 +150,7 @@ impl From<[u8; HEADER_LEN]> for Header {
         let timestamp = match chrono::DateTime::from_timestamp_millis(timestamp_number) {
             Some(timestamp) => timestamp,
             None => {
-                log::warn!(
+                tracing::warn!(
                     "Failed to get `DateTime` from {}: Defaulting to UNIX epoch.",
                     timestamp_number
                 );

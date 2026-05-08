@@ -22,10 +22,10 @@ impl State for Exit {
             event::Event::Key(key_event) => {
                 if key_event.code == KEY_CODE_ACCEPT {
                     ctx.set_exit(true);
-                    log::info!("Exiting...");
+                    tracing::info!("Exiting...");
                 } else if key_event.code == KEY_CODE_DECLINE {
                     ctx.to_state(AppState::app());
-                    log::info!("Canceled exiting.");
+                    tracing::info!("Canceled exiting.");
                 };
             }
             _ => {}

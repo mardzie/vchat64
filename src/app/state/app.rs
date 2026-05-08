@@ -21,12 +21,12 @@ impl App {
             KeyEventKind::Press => match key_event.code {
                 KeyCode::Char('q') => {
                     ctx.to_state(AppState::exit());
-                    log::debug!("Into `Exit` state.");
+                    tracing::debug!("Into `Exit` state.");
                 }
                 KeyCode::Char('i') => {
                     ctx.to_state(AppState::code_input());
                     ctx.addr_input.select();
-                    log::debug!("Into `CodeInput` state.");
+                    tracing::debug!("Into `CodeInput` state.");
                 }
                 _ => {}
             },

@@ -18,10 +18,12 @@ impl FriendCode {
         let ip = match local_ip_address::local_ip() {
             Ok(ip) => ip,
             Err(e) => {
-                log::warn!("Failed to get local ip: {}", e);
+                tracing::warn!("Failed to get local ip: {}", e);
                 return Err(IpError::from(e));
             }
         };
+
+        tracing::trace!("Created new local `FriendCode`.");
 
         Ok(Self::from_ip_port(ip, port))
     }
@@ -30,10 +32,12 @@ impl FriendCode {
         let ip = match runtime.block_on(public_ip_address::perform_lookup(None)) {
             Ok(lookup) => lookup.ip,
             Err(e) => {
-                log::warn!("Failed to perform public ip lookup.");
+                tracing::warn!("Failed to perform public ip lookup.");
                 return Err(IpError::from(e));
             }
         };
+
+        tracing::trace!("Created new public `FriendCode`.");
 
         Ok(Self::from_ip_port(ip, port))
     }
@@ -51,7 +55,7 @@ impl FriendCode {
             .collect::<String>()
             .replace(".", "")
             .replace(":", "");
-        let bytes = hex::decode(fc_string).map_err(|_| InvalidFriendCodeString)?;
+        let bytes = hex::decode(&fc_string).map_err(|_| InvalidFriendCodeString)?;
 
         let mut port_bytes = [0u8; 2];
         port_bytes.copy_from_slice(&bytes[bytes.len() - 2..]);
@@ -72,6 +76,8 @@ impl FriendCode {
             }
             _ => return Err(InvalidFriendCodeString),
         };
+
+        tracing::trace!("Created `FriendCode` from String.");
 
         Ok(Self::new(SocketAddr::new(ip, port)))
     }

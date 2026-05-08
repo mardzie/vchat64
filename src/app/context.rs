@@ -91,7 +91,9 @@ impl AppContext {
     pub fn to_state(&mut self, new_state: AppState) {
         self.state = new_state;
         if self.event_tx.try_send(Event::ReDraw).is_err() {
-            log::warn!("Failed to issue redraw: Content may be outdated: Press any key to update.");
+            tracing::warn!(
+                "Failed to issue redraw: Content may be outdated: Press any key to update."
+            );
         };
     }
 

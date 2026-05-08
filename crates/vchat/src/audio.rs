@@ -62,11 +62,11 @@ impl Audio {
         let (producer, consumer) = ring_buf.split();
         let mut input = InputStream::new(&host).expect("Failed to create new input object.");
         let input_sample_format = input.sample_format();
-        log::info!("Input Stream: Using config: {:?}", input.config());
+        tracing::info!("Input Stream: Using config: {:?}", input.config());
         Self::build_input_stream(&mut input, input_notify, producer);
 
         let mut output = OutputStream::new(&host).expect("Failed to create new output object.");
-        log::info!("Output Stream: Using config: {:?}", output.config());
+        tracing::info!("Output Stream: Using config: {:?}", output.config());
         Self::build_output_stream(&mut output, output_channel);
 
         let volume = Arc::new(atomic::AtomicU8::new(init_volume));
@@ -98,7 +98,7 @@ impl Audio {
                     move |buf: &[f32], info| {
                         Self::input_data_callback(buf, info, &input_notify, &mut producer)
                     },
-                    move |e| log::error!("Input Stream Error: {}", e),
+                    move |e| tracing::error!("Input Stream Error f32: {}", e),
                 )
                 .expect("Failed to create new f32 input stream."),
             SampleFormat::F64 => input
@@ -106,7 +106,7 @@ impl Audio {
                     move |buf: &[f64], info| {
                         Self::input_data_callback(buf, info, &input_notify, &mut producer)
                     },
-                    move |e| log::error!("Input Stream Error: {}", e),
+                    move |e| tracing::error!("Input Stream Error f64: {}", e),
                 )
                 .expect("Failed to create new f64 input stream."),
             SampleFormat::U8 => input
@@ -114,7 +114,7 @@ impl Audio {
                     move |buf: &[u8], info| {
                         Self::input_data_callback(buf, info, &input_notify, &mut producer)
                     },
-                    move |e| log::error!("Input Stream Error: {}", e),
+                    move |e| tracing::error!("Input Stream Error u8: {}", e),
                 )
                 .expect("Failed to create new u8 input stream."),
             SampleFormat::U16 => input
@@ -122,7 +122,7 @@ impl Audio {
                     move |buf: &[u16], info| {
                         Self::input_data_callback(buf, info, &input_notify, &mut producer)
                     },
-                    move |e| log::error!("Input Stream Error: {}", e),
+                    move |e| tracing::error!("Input Stream Error u16: {}", e),
                 )
                 .expect("Failed to create new u16 input stream."),
             SampleFormat::U32 => input
@@ -130,7 +130,7 @@ impl Audio {
                     move |buf: &[u32], info| {
                         Self::input_data_callback(buf, info, &input_notify, &mut producer)
                     },
-                    move |e| log::error!("Input Stream Error: {}", e),
+                    move |e| tracing::error!("Input Stream Error u32: {}", e),
                 )
                 .expect("Failed to create new u32 input stream."),
             SampleFormat::U64 => input
@@ -138,7 +138,7 @@ impl Audio {
                     move |buf: &[u64], info| {
                         Self::input_data_callback(buf, info, &input_notify, &mut producer)
                     },
-                    move |e| log::error!("Input Stream Error: {}", e),
+                    move |e| tracing::error!("Input Stream Error u64: {}", e),
                 )
                 .expect("Failed to create new u64 input stream."),
             SampleFormat::I8 => input
@@ -146,7 +146,7 @@ impl Audio {
                     move |buf: &[i8], info| {
                         Self::input_data_callback(buf, info, &input_notify, &mut producer)
                     },
-                    move |e| log::error!("Input Stream Error: {}", e),
+                    move |e| tracing::error!("Input Stream Error i8: {}", e),
                 )
                 .expect("Failed to create new i8 input stream."),
             SampleFormat::I16 => input
@@ -154,7 +154,7 @@ impl Audio {
                     move |buf: &[i16], info| {
                         Self::input_data_callback(buf, info, &input_notify, &mut producer)
                     },
-                    move |e| log::error!("Input Stream Error: {}", e),
+                    move |e| tracing::error!("Input Stream Error i16: {}", e),
                 )
                 .expect("Failed to create new i16 input stream."),
             SampleFormat::I32 => input
@@ -162,7 +162,7 @@ impl Audio {
                     move |buf: &[i32], info| {
                         Self::input_data_callback(buf, info, &input_notify, &mut producer)
                     },
-                    move |e| log::error!("Input Stream Error: {}", e),
+                    move |e| tracing::error!("Input Stream Error i32: {}", e),
                 )
                 .expect("Failed to create new i32 input stream."),
             SampleFormat::I64 => input
@@ -170,7 +170,7 @@ impl Audio {
                     move |buf: &[i64], info| {
                         Self::input_data_callback(buf, info, &input_notify, &mut producer)
                     },
-                    move |e| log::error!("Input Stream Error: {}", e),
+                    move |e| tracing::error!("Input Stream Error i64: {}", e),
                 )
                 .expect("Failed to create new i64 input stream."),
             format => panic!(
@@ -205,7 +205,7 @@ impl Audio {
                             &mut output_channel.try_iter().peekable(),
                         )
                     },
-                    move |e| log::error!("Output Stream Error: {}", e),
+                    move |e| tracing::error!("Output Stream Error f32: {}", e),
                 )
                 .expect("Failed to create new f32 output stream."),
             SampleFormat::F64 => output
@@ -217,7 +217,7 @@ impl Audio {
                             &mut output_channel.try_iter().peekable(),
                         )
                     },
-                    move |e| log::error!("Output Stream Error: {}", e),
+                    move |e| tracing::error!("Output Stream Error f64: {}", e),
                 )
                 .expect("Failed to create new f64 output stream."),
             SampleFormat::U8 => output
@@ -229,7 +229,7 @@ impl Audio {
                             &mut output_channel.try_iter().peekable(),
                         )
                     },
-                    move |e| log::error!("Output Stream Error: {}", e),
+                    move |e| tracing::error!("Output Stream Error u8: {}", e),
                 )
                 .expect("Failed to create new u8 output stream."),
             SampleFormat::U16 => output
@@ -241,7 +241,7 @@ impl Audio {
                             &mut output_channel.try_iter().peekable(),
                         )
                     },
-                    move |e| log::error!("Output Stream Error: {}", e),
+                    move |e| tracing::error!("Output Stream Error u16: {}", e),
                 )
                 .expect("Failed to create new u16 output stream."),
             SampleFormat::U32 => output
@@ -253,7 +253,7 @@ impl Audio {
                             &mut output_channel.try_iter().peekable(),
                         )
                     },
-                    move |e| log::error!("Output Stream Error: {}", e),
+                    move |e| tracing::error!("Output Stream Error u32: {}", e),
                 )
                 .expect("Failed to create new u32 output stream."),
             SampleFormat::U64 => output
@@ -265,7 +265,7 @@ impl Audio {
                             &mut output_channel.try_iter().peekable(),
                         )
                     },
-                    move |e| log::error!("Output Stream Error: {}", e),
+                    move |e| tracing::error!("Output Stream Error u64: {}", e),
                 )
                 .expect("Failed to create new u64 output stream."),
             SampleFormat::I8 => output
@@ -277,7 +277,7 @@ impl Audio {
                             &mut output_channel.try_iter().peekable(),
                         )
                     },
-                    move |e| log::error!("Output Stream Error: {}", e),
+                    move |e| tracing::error!("Output Stream Error i8: {}", e),
                 )
                 .expect("Failed to create new i8 output stream."),
             SampleFormat::I16 => output
@@ -289,7 +289,7 @@ impl Audio {
                             &mut output_channel.try_iter().peekable(),
                         )
                     },
-                    move |e| log::error!("Output Stream Error: {}", e),
+                    move |e| tracing::error!("Output Stream Error i16: {}", e),
                 )
                 .expect("Failed to create new i16 output stream."),
             SampleFormat::I32 => output
@@ -301,7 +301,7 @@ impl Audio {
                             &mut output_channel.try_iter().peekable(),
                         )
                     },
-                    move |e| log::error!("Output Stream Error: {}", e),
+                    move |e| tracing::error!("Output Stream Error i32: {}", e),
                 )
                 .expect("Failed to create new i32 output stream."),
             SampleFormat::I64 => output
@@ -313,7 +313,7 @@ impl Audio {
                             &mut output_channel.try_iter().peekable(),
                         )
                     },
-                    move |e| log::error!("Output Stream Error: {}", e),
+                    move |e| tracing::error!("Output Stream Error i64: {}", e),
                 )
                 .expect("Failed to create new i64 output stream."),
             format => panic!("Unsupported sample format `SampleFormat::{}`!", format),
@@ -358,7 +358,7 @@ impl Audio {
                     .map(|sample| T::from_sample_(sample));
                 buf[*buf_used..buf_len].copy_from_iter(extracted);
                 *buf_used = buf_len;
-                log::trace!(
+                tracing::trace!(
                     "Output Data Callback: Filled remaining space with {} of {} samples from new sample",
                     buf_space,
                     sample_len
@@ -372,7 +372,7 @@ impl Audio {
                 buf[*buf_used..new_used]
                     .copy_from_iter(samples.into_iter().map(|sample| T::from_sample_(sample)));
                 *buf_used = new_used;
-                log::trace!(
+                tracing::trace!(
                     "Output Data Callback: Filled space with {} samples of full extra sample, remaining space {}",
                     sample_len,
                     buf_len - *buf_used

@@ -10,11 +10,18 @@ pub const CHILL_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(
 pub const TIMEOUT: std::time::Duration = std::time::Duration::from_millis(10);
 
 fn main() -> Result<()> {
-    let file = std::fs::File::create("./log.log").unwrap();
-    env_logger::builder()
-        .default_format()
-        .filter_level(log::LevelFilter::Trace)
-        .target(env_logger::Target::Pipe(Box::new(file)))
+    // Add custom writer to limit log file size.
+    let log_file = std::io::LineWriter::new(std::fs::File::create("./log.log").unwrap());
+    tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_writer(std::sync::Mutex::new(log_file))
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .with_level(true)
+        .with_target(true)
+        .with_line_number(true)
+        .with_thread_names(true)
+        .with_thread_ids(true)
+        .pretty()
         .init();
 
     color_eyre::install()?;

@@ -17,7 +17,7 @@ impl AudioProcessor {
     }
 
     pub fn process_audio(&self, buf: Vec<f32>) -> Vec<f32> {
-        log::trace!("Audio Processor: Processing sample {} bytes", buf.len() * 4);
+        tracing::trace!("Audio Processor: Processing sample {} bytes", buf.len() * 4);
 
         // Process audio
         // TODO
