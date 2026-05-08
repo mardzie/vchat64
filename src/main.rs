@@ -19,6 +19,17 @@ fn main() -> Result<()> {
 
     color_eyre::install()?;
 
+    // Panic hook
+    {
+        let original_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |panic_info| {
+            crossterm::terminal::disable_raw_mode().unwrap();
+            crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen)
+                .unwrap();
+            original_hook(panic_info);
+        }));
+    }
+
     let mut terminal = ratatui::init();
     let mut app = App::new();
     let app_result = app.run(&mut terminal);
