@@ -75,7 +75,6 @@ impl LineTextArea {
                     if ch.is_ascii() && self.pos <= self.buf.len() {
                         self.buf.insert(self.pos, ch);
                         self.pos += 1;
-                        tracing::debug!("Inserted {} into {} at {}", ch, self.buf, self.pos - 1);
                     }
                 }
                 KeyCode::Backspace => {
