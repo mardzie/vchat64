@@ -22,8 +22,7 @@ impl State for CodeInput {
             if let event::Event::Key(key_event) = &event
                 && key_event.code == KeyCode::Enter
             {
-                let buf = ctx.addr_input.get_buf().to_string();
-                if let Ok(fc) = FriendCode::from_string_friend_code(&buf) {
+                if let Ok(fc) = FriendCode::from_string_friend_code(ctx.addr_input.get_buf()) {
                     ctx.vchat.add_address(fc.into_socket_addr());
                     ctx.addr_input.clear();
                 }

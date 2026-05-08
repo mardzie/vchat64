@@ -69,19 +69,14 @@ impl LineTextArea {
     }
 
     fn handle_key_event(&mut self, key_event: &KeyEvent) -> Result<()> {
-        if key_event.kind != KeyEventKind::Press {
-            return Ok(());
-        };
-
         match key_event.kind {
             KeyEventKind::Press => match key_event.code {
                 KeyCode::Char(ch) => {
-                    if let Some((idx, _)) =
-                        self.buf.char_indices().find(|(idx, _)| idx == &self.pos)
-                    {
-                        self.buf.insert(idx, ch);
+                    if ch.is_ascii() && self.pos <= self.buf.len() {
+                        self.buf.insert(self.pos, ch);
                         self.pos += 1;
-                    };
+                        tracing::debug!("Inserted {} into {} at {}", ch, self.buf, self.pos - 1);
+                    }
                 }
                 KeyCode::Backspace => {
                     if self.pos > 0 {
@@ -128,13 +123,7 @@ impl Widget for &LineTextArea {
                 .get(0..self.pos)
                 .expect("Line Text Area: Failed to get slice before pointer.");
             let cursor = self.buf.get(self.pos..self.pos + 1).unwrap_or(" ");
-            let after = if self.pos != self.buf.len() {
-                self.buf
-                    .get(self.pos + 1..self.buf.len())
-                    .expect("Line Text Area: Failed to get slice after pointer.")
-            } else {
-                ""
-            };
+            let after = self.buf.get(self.pos + 1..self.buf.len()).unwrap_or("");
 
             let cursor = if self.selected {
                 cursor.black().on_white()

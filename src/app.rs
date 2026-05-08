@@ -125,9 +125,7 @@ impl App {
     }
 
     pub fn handle_event(&mut self) -> Result<()> {
-        let event = self.event_channel_rx.recv()?;
-
-        let event = match event {
+        let event = match self.event_channel_rx.recv()? {
             Event::Crossterm(event) => event,
             Event::ReDraw => {
                 return Ok(());
