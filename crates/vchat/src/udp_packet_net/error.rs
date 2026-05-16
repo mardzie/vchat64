@@ -14,8 +14,6 @@ pub enum SendError {
 pub enum RecvError {
     #[error("Recv IO Error: {0}")]
     Io(#[from] io::Error),
-    #[error("Would Block")]
-    WouldBlock,
     #[error("Checksum Mismatch")]
     ChecksumMismatch,
 }

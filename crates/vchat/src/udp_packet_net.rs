@@ -1,14 +1,9 @@
-use std::{
-    io,
-    net::{SocketAddr, ToSocketAddrs, UdpSocket},
-};
+use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 
 pub mod error;
 pub mod packet;
 
 use packet::{HEADER_LEN, Header, Packet};
-
-use crate::TIMEOUT;
 
 pub const MAX_PACKET_SIZE: usize = 512;
 /// The max payload size is 512 bytes.
@@ -31,58 +26,26 @@ impl UdpPacketNet {
     where
         A: ToSocketAddrs,
     {
-        let socket = UdpSocket::bind(addr)?;
-        socket
-            .set_nonblocking(true)
-            .expect("Failed to put socket into blocking mode!");
-        socket
-            .set_read_timeout(Some(TIMEOUT))
-            .expect("Failed to set UDP Socket read timeout.");
-        socket
-            .set_write_timeout(Some(TIMEOUT))
-            .expect("Failed to set UDP Socket write timeout.");
-
         Ok(UdpPacketNet {
-            socket,
+            socket: UdpSocket::bind(addr)?,
             recv_buf: [0u8; u16::MAX as usize],
         })
     }
 
     /// Sends the `packet` to the given address.
-    ///
-    /// This operation is non blocking.
-    ///
-    /// # Error:
-    ///
-    /// On blocking behavior `Error::WouldBlock` is returned.
     pub fn send<A>(&self, packet: Packet, addr: A) -> Result<usize, error::SendError>
     where
         A: ToSocketAddrs,
     {
         self.socket
             .send_to(&packet.into_bytes(), addr)
-            .map_err(|e| {
-                if e.kind() == std::io::ErrorKind::WouldBlock {
-                    error::SendError::WouldBlock
-                } else {
-                    error::SendError::Io(e)
-                }
-            })
+            .map_err(error::SendError::Io)
     }
 
     /// Reads a [`Packet`] from stream and returns the `Packet` and the source `SocketAddr`.
-    ///
-    /// This operation in non blocking.
-    ///
-    /// # Error:
-    ///
-    /// On blocking behavior `io::ErrorKind::WouldBlock` is returned.
     pub fn recv(&mut self) -> Result<(Packet, SocketAddr), error::RecvError> {
         let (len, addr) = match self.socket.recv_from(&mut self.recv_buf) {
             Ok(packet) => packet,
-            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                return Err(error::RecvError::WouldBlock);
-            }
             Err(e) => return Err(error::RecvError::Io(e)),
         };
 

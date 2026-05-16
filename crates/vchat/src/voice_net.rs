@@ -40,8 +40,6 @@ impl VoiceNet {
     }
 
     /// Send a packet.
-    ///
-    /// This function does not block.
     pub fn send<A>(&self, data: Vec<u8>, addr: &A) -> Result<(), error::SendError>
     where
         A: ToSocketAddrs,
@@ -53,8 +51,6 @@ impl VoiceNet {
     }
 
     /// Tries to receives a packet from queue. If no packet is available `None` is returned.
-    ///
-    /// This function does not block.
     pub fn recv(&mut self) -> Option<(chrono::DateTime<chrono::Utc>, PacketTuple)> {
         match self.read_packet() {
             Ok(_) => {}
@@ -92,7 +88,6 @@ impl VoiceNet {
                 udp_packet_net::error::RecvError::ChecksumMismatch => {
                     return Err("UDP Packet Checksum Mismatch.".to_string());
                 }
-                udp_packet_net::error::RecvError::WouldBlock => return Ok(()),
             },
         };
 

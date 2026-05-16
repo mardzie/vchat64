@@ -4,8 +4,7 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-use color_eyre::eyre::Result;
-use crossbeam::channel::{Receiver, Sender};
+use crossbeam::channel::Receiver;
 use ringbuf::traits::{Consumer, Observer};
 
 use crate::{
@@ -32,11 +31,12 @@ pub struct VChat {
     addresses: ArcRwLock<Vec<SocketAddr>>,
 
     exit_notify: crossbeam::channel::Sender<InputMessage>,
-    udp_bridge_handle: JoinHandle<()>,
+    input_udp_bridge_handle: JoinHandle<Result<(), ()>>,
+    output_udp_bridge_handle: JoinHandle<Result<(), ()>>,
 }
 
 impl VChat {
-    pub fn new<A>(addr: A) -> Result<Self>
+    pub fn new<A>(addr: A) -> Result<Self, ()>
     where
         A: ToSocketAddrs,
     {
@@ -45,7 +45,7 @@ impl VChat {
             crossbeam::channel::bounded(AUDIO_CHANNELS_BUF_SIZE);
 
         let input_notify_tx_c = exit_notify.clone();
-        let (audio, consumer) = Audio::new(input_notify_tx_c, speaker_output_rx, u8::MAX);
+        let (audio, mut consumer) = Audio::new(input_notify_tx_c, speaker_output_rx, u8::MAX);
         let audio = Arc::new(audio);
 
         let voice_net = Arc::new(Mutex::new(
@@ -54,20 +54,45 @@ impl VChat {
 
         let addresses = Arc::new(RwLock::new(Vec::with_capacity(8)));
 
-        let audio_c = audio.clone();
+        let audio_processor = audio.audio_processor();
         let voice_net_c = voice_net.clone();
         let addresses_c = addresses.clone();
-        let udp_bridge_handle = thread::Builder::new()
-            .name("UDP Bridge".to_string())
+        let input_udp_bridge_handle = thread::Builder::new()
+            .name("Input UDP Bridge".to_string())
             .spawn(move || {
-                Self::udp_bridge(
-                    voice_net_c,
-                    addresses_c,
-                    input_notify_rx,
-                    consumer,
-                    speaker_input_tx,
-                    audio_c,
-                )
+                tracing::debug!("Input UDP Bridge started...");
+                loop {
+                    if Self::input_udp_bridge(
+                        &voice_net_c,
+                        &audio_processor,
+                        &input_notify_rx,
+                        &mut consumer,
+                        &addresses_c,
+                    )
+                    .is_err()
+                    {
+                        break;
+                    };
+                }
+                tracing::debug!("Input UDP Bridge stopped.");
+
+                Err(())
+            })
+            .expect("Failed to build UDP Bridge thread!");
+
+        let voice_net_c = voice_net.clone();
+        let output_udp_bridge_handle = thread::Builder::new()
+            .name("Output UDP Bridge".to_string())
+            .spawn(move || {
+                tracing::debug!("Output UDP Bridge started...");
+                loop {
+                    if Self::udp_output_bridge(&voice_net_c, &speaker_input_tx).is_err() {
+                        break;
+                    };
+                }
+                tracing::debug!("Output UDP Bridge stopped.");
+
+                Err(())
             })
             .expect("Failed to build UDP Bridge thread!");
 
@@ -79,44 +104,9 @@ impl VChat {
             addresses,
 
             exit_notify,
-            udp_bridge_handle,
+            input_udp_bridge_handle,
+            output_udp_bridge_handle,
         })
-    }
-
-    fn udp_bridge(
-        voice_net: ArcMutex<VoiceNet>,
-        addresses: ArcRwLock<Vec<SocketAddr>>,
-
-        input_notify: Receiver<InputMessage>,
-        mut input_ringbuf: ringbuf::wrap::caching::Caching<
-            Arc<ringbuf::SharedRb<ringbuf::storage::Heap<f32>>>,
-            false,
-            true,
-        >,
-        output_tx: Sender<Vec<f32>>,
-        audio: Arc<Audio>,
-    ) {
-        let audio_processor = audio.audio_processor();
-
-        loop {
-            if Self::input_udp_bridge(
-                &voice_net,
-                &audio_processor,
-                &input_notify,
-                &mut input_ringbuf,
-                &addresses,
-            )
-            .is_err()
-            {
-                break;
-            };
-
-            if Self::udp_output_bridge(&voice_net, &output_tx).is_err() {
-                break;
-            };
-        }
-
-        tracing::warn!("UDP Bridge: Closed")
     }
 
     fn input_udp_bridge(
@@ -130,15 +120,15 @@ impl VChat {
         >,
         addresses: &ArcRwLock<Vec<SocketAddr>>,
     ) -> Result<(), ()> {
-        match input_notify.try_recv() {
+        match input_notify.recv() {
             Ok(InputMessage::Samples) => {}
-            Err(crossbeam::channel::TryRecvError::Empty) => return Ok(()),
             Ok(InputMessage::Exit) => return Err(()),
-            Err(crossbeam::channel::TryRecvError::Disconnected) => return Err(()),
+            Err(_) => return Err(()),
         };
 
         let mut data = vec![0f32; input_ringbuf.occupied_len()];
         input_ringbuf.pop_slice(&mut data);
+        input_ringbuf.pop_iter();
 
         let data = audio_processor.process_audio(data);
 
@@ -285,6 +275,7 @@ impl VChat {
             tracing::error!("Failed to send exit notification to audio thread: {}", e);
         };
 
-        let _ = self.udp_bridge_handle.join();
+        let _ = self.input_udp_bridge_handle.join();
+        let _ = self.output_udp_bridge_handle.join();
     }
 }
