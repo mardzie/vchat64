@@ -1,19 +1,15 @@
-use std::{
-    collections::VecDeque,
-    io,
-    net::{SocketAddr, ToSocketAddrs},
-};
+use std::{collections::VecDeque, io, net::ToSocketAddrs};
 
 use crate::{
     helpers::calculate_version,
     udp_packet_net::{self, UdpPacketNet, packet::Packet},
+    voice_net::packets::BufferedPacket,
 };
 
 pub mod error;
+pub(crate) mod packets;
 
 const PACKET_BUF_TIME_IN_QUEUE: chrono::Duration = chrono::Duration::milliseconds(40);
-
-pub type PacketTuple = (SocketAddr, Vec<u8>);
 
 #[derive(Debug)]
 pub struct VoiceNet {
@@ -21,7 +17,7 @@ pub struct VoiceNet {
 
     packet_net: UdpPacketNet,
 
-    incoming_packet_buf: VecDeque<(chrono::DateTime<chrono::Utc>, PacketTuple)>,
+    incoming_packet_buf: VecDeque<BufferedPacket>,
 }
 
 impl VoiceNet {
@@ -34,7 +30,9 @@ impl VoiceNet {
 
         Ok(Self {
             current_packet_version,
+
             packet_net,
+
             incoming_packet_buf: VecDeque::with_capacity(1024),
         })
     }
@@ -51,7 +49,7 @@ impl VoiceNet {
     }
 
     /// Tries to receives a packet from queue. If no packet is available `None` is returned.
-    pub fn recv(&mut self) -> Option<(chrono::DateTime<chrono::Utc>, PacketTuple)> {
+    pub fn recv(&mut self) -> Option<BufferedPacket> {
         match self.read_packet() {
             Ok(_) => {}
             Err(e) => {
@@ -60,12 +58,12 @@ impl VoiceNet {
         }
 
         // Keep `PACKET_BUF_TIME_IN_QUEUE` packets in the queue. This helps to keep as many packets as possible.
-        let (dt, packet) = self.incoming_packet_buf.pop_front()?;
+        let buf_packet = self.incoming_packet_buf.pop_front()?;
         let now = chrono::Utc::now();
-        if now - dt > PACKET_BUF_TIME_IN_QUEUE {
-            Some((dt, packet))
+        if now - buf_packet.timestamp() > PACKET_BUF_TIME_IN_QUEUE {
+            Some(buf_packet)
         } else {
-            self.incoming_packet_buf.push_front((dt, packet));
+            self.incoming_packet_buf.push_front(buf_packet);
             None
         }
     }
@@ -101,16 +99,24 @@ impl VoiceNet {
         // Do not insert too old packets.
         let idx = self
             .incoming_packet_buf
-            .partition_point(|(ts, _)| ts < &packet_timestamp);
+            .partition_point(|buf_packet| buf_packet.timestamp() < &packet_timestamp);
         if idx > 0 || self.incoming_packet_buf.is_empty() {
-            self.incoming_packet_buf
-                .insert(idx, (packet_timestamp, (src_addr, packet.payload)));
+            self.incoming_packet_buf.insert(
+                idx,
+                BufferedPacket::new(
+                    packet_timestamp,
+                    crate::voice_net::packets::Packet::new(src_addr, packet.payload),
+                ),
+            );
             Ok(())
         } else {
             Err(format!(
                 "Packet too old: Packet {} < {} Oldest",
                 packet_timestamp,
-                self.incoming_packet_buf.front().expect("Has to be Some").0 // Has to be Some or the If should have been chosen.
+                self.incoming_packet_buf
+                    .front()
+                    .expect("Has to be Some")
+                    .timestamp() // Has to be Some or the If should have been chosen.
             ))
         }
     }

@@ -185,24 +185,25 @@ impl VChat {
     ) -> Result<(), ()> {
         const AUDIO_VALUE_BYTE_LEN: usize = 4;
 
-        let (addr, bytes) = {
+        let packet: crate::voice_net::packets::Packet = {
             let mut voice_net_lock = voice_net
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            if let Some((_, transmission)) = voice_net_lock.recv() {
-                transmission
+            if let Some(buf_packet) = voice_net_lock.recv() {
+                buf_packet.into()
             } else {
                 return Ok(());
             }
         };
+        let (src_addr, payload) = packet.inner();
 
         tracing::trace!(
             "UDP Output Bridge: Got message from {} with size {}",
-            addr,
-            bytes.len()
+            src_addr,
+            payload.len()
         );
 
-        let samples: Vec<f32> = bytes
+        let samples: Vec<f32> = payload
             .chunks(AUDIO_VALUE_BYTE_LEN)
             .map(|chunk| {
                 let mut buf = [0u8; AUDIO_VALUE_BYTE_LEN];
