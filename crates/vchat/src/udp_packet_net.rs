@@ -2,8 +2,14 @@ use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 
 pub mod error;
 pub mod packet;
+pub mod udp_packet_net_receiver;
+pub mod udp_packet_net_sender;
 
-use packet::{HEADER_LEN, Header, Packet};
+use packet::{HEADER_LEN, Packet};
+
+use crate::udp_packet_net::{
+    udp_packet_net_receiver::UdpPacketNetReceiver, udp_packet_net_sender::UdpPacketNetSender,
+};
 
 pub const MAX_PACKET_SIZE: usize = 512;
 /// The max payload size is 512 bytes.
@@ -16,9 +22,8 @@ pub const MAX_PAYLOAD_SIZE: usize = MAX_PACKET_SIZE - HEADER_LEN;
 /// There must never exists two identical `SocketAddr` in `addresses`!
 #[derive(Debug)]
 pub struct UdpPacketNet {
-    socket: UdpSocket,
-
-    recv_buf: [u8; u16::MAX as usize],
+    sender: UdpPacketNetSender,
+    receiver: UdpPacketNetReceiver,
 }
 
 impl UdpPacketNet {
@@ -26,9 +31,12 @@ impl UdpPacketNet {
     where
         A: ToSocketAddrs,
     {
-        Ok(UdpPacketNet {
-            socket: UdpSocket::bind(addr)?,
-            recv_buf: [0u8; u16::MAX as usize],
+        let socket = UdpSocket::bind(addr)?;
+        let socket_c = socket.try_clone()?;
+
+        Ok(Self {
+            sender: UdpPacketNetSender::new(socket),
+            receiver: UdpPacketNetReceiver::new(socket_c, [0u8; u16::MAX as usize]),
         })
     }
 
@@ -37,30 +45,16 @@ impl UdpPacketNet {
     where
         A: ToSocketAddrs,
     {
-        self.socket
-            .send_to(&packet.into_bytes(), addr)
-            .map_err(error::SendError::Io)
+        self.sender.send(packet, addr)
     }
 
     /// Reads a [`Packet`] from stream and returns the `Packet` and the source `SocketAddr`.
     pub fn recv(&mut self) -> Result<(Packet, SocketAddr), error::RecvError> {
-        let (len, addr) = match self.socket.recv_from(&mut self.recv_buf) {
-            Ok(packet) => packet,
-            Err(e) => return Err(error::RecvError::Io(e)),
-        };
+        self.receiver.recv()
+    }
 
-        // Header
-        let mut header_bytes = [0u8; HEADER_LEN];
-        header_bytes.copy_from_slice(&self.recv_buf[..HEADER_LEN]);
-        let header = Header::from(header_bytes);
-
-        // Header and Payload to bytes and checksum verification.
-        let payload_bytes = self.recv_buf[HEADER_LEN..len].to_vec();
-        let packet = match Packet::new(header, payload_bytes) {
-            Ok(packet) => packet,
-            Err(_) => return Err(error::RecvError::ChecksumMismatch),
-        };
-
-        Ok((packet, addr))
+    /// Returns the sending and reading halves.
+    pub fn split(self) -> (UdpPacketNetSender, UdpPacketNetReceiver) {
+        (self.sender, self.receiver)
     }
 }
