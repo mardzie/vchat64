@@ -1,12 +1,16 @@
 pub trait ToBytes {
     /// Encode `&self` into `&mut Vec<u8>`.
-    fn to_bytes(&self, buf: &mut Vec<u8>);
+    fn to_bytes(&self, buf: &mut [u8]) -> Result<usize, InsufficientBuffer>;
 }
 
 pub trait FromBytes: Sized {
     /// Decode `&[u8]` into `Self`.
     fn from_bytes(buf: &[u8]) -> Result<Self, FromByteError>;
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Insufficient buffer size")]
+pub struct InsufficientBuffer;
 
 #[derive(Debug, thiserror::Error)]
 pub enum FromByteError {

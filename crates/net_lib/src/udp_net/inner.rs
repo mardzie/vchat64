@@ -1,6 +1,6 @@
 use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 
-use crate::udp_net::error::{
+use crate::error::{
     BindError, ConnectError, LocalAddrError, PeekError, PeerAddrError, RecvError, SendError,
 };
 
@@ -30,23 +30,12 @@ impl Inner {
         Ok(self.socket.send_to(buf, addr)?)
     }
 
-    pub fn send_to_all(
-        &self,
-        buf: &[u8],
-        addrs: &[impl ToSocketAddrs],
-    ) -> Result<(), Vec<SendError>> {
-        let mut error_vec = Vec::new();
+    pub fn send_to_all(&self, buf: &[u8], addrs: &[impl ToSocketAddrs]) -> Result<(), SendError> {
         for addr in addrs {
-            if let Err(e) = self.send_to(buf, addr) {
-                error_vec.push(e);
-            }
+            self.send_to(buf, addr)?;
         }
 
-        if error_vec.is_empty() {
-            Ok(())
-        } else {
-            Err(error_vec)
-        }
+        Ok(())
     }
 
     #[inline]

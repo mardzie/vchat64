@@ -1,70 +1,17 @@
-macro_rules! io_error_enum {
-    ($name:ident, { $($kind:ident), * $(,)? }) => {
-        #[derive(Debug, ::thiserror::Error)]
-        pub enum $name {
-            $( #[error(transparent)] $kind(::std::io::Error), )*
-            #[error("Other: {0}")]
-            Other(::std::io::Error),
-        }
-
-        impl From<::std::io::Error> for $name {
-            fn from(e: ::std::io::Error) -> Self {
-                match e.kind() {
-                    $( ::std::io::ErrorKind::$kind => $name::$kind(e), )*
-                    _ => $name::Other(e),
-                }
-            }
-        }
-    };
+#[derive(Debug, thiserror::Error)]
+pub enum SendError {
+    #[error("{0}")]
+    SendError(#[from] crate::error::SendError),
+    #[error("{0}")]
+    ToBytes(#[from] crate::traits::bytable::InsufficientBuffer),
 }
-
-io_error_enum!(BindError, {
-    PermissionDenied,
-    AddrInUse,
-    InvalidInput,
-    AddrNotAvailable,
-    InvalidFilename,
-    NotFound,
-    OutOfMemory,
-    ReadOnlyFilesystem,
-});
-
-io_error_enum!(ConnectError, {
-    PermissionDenied,
-    AddrInUse,
-    AddrNotAvailable,
-    WouldBlock,
-    ConnectionRefused,
-    Interrupted,
-    NetworkUnreachable,
-    TimedOut,
-});
-
-io_error_enum!(SendError, {
-    PermissionDenied,
-    WouldBlock,
-    ConnectionReset,
-    Interrupted,
-    InvalidInput,
-    OutOfMemory,
-    NotConnected,
-    BrokenPipe,
-});
 
 pub type PeekError = RecvError;
 
-io_error_enum!(RecvError, {
-    WouldBlock,
-    ConnectionRefused,
-    Interrupted,
-    InvalidInput,
-    OutOfMemory,
-    NotConnected,
-});
-
-pub type LocalAddrError = GetSocketNameError;
-pub type PeerAddrError = GetSocketNameError;
-
-io_error_enum!(GetSocketNameError, {
-    InvalidInput,
-});
+#[derive(Debug, thiserror::Error)]
+pub enum RecvError {
+    #[error("{0}")]
+    RecvError(#[from] crate::error::RecvError),
+    #[error("{0}")]
+    FromBytes(#[from] crate::traits::bytable::FromByteError),
+}
