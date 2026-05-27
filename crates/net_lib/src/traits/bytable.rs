@@ -10,7 +10,9 @@ pub trait FromBytes: Sized {
 
 #[derive(Debug, thiserror::Error)]
 pub enum FromByteError {
-    #[error("Unexpected end of file: {needed} bytes needed but only {available} bytes: {desc} ")]
+    #[error(
+        "Unexpected end of file: {needed} bytes needed but only {available} bytes available: {desc} "
+    )]
     UnexpectedEOF {
         needed: usize,
         available: usize,
