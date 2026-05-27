@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace]
-members = ["crates/friend_code", "crates/vchat"]
+members = ["crates/friend_code", "crates/net_lib", "crates/vchat"]
 
 [workspace.dependencies]
 chrono = "0.4.44"
