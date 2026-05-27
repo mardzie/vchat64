@@ -1,7 +1,7 @@
 use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 
 use crate::udp_net::error::{
-    self, ConnectError, LocalAddrError, PeekError, PeerAddrError, RecvError, SendError,
+    BindError, ConnectError, LocalAddrError, PeekError, PeerAddrError, RecvError, SendError,
 };
 
 #[derive(Debug)]
@@ -10,7 +10,7 @@ pub struct Inner {
 }
 
 impl Inner {
-    pub fn bind(addr: impl ToSocketAddrs) -> Result<Self, error::BindError> {
+    pub fn bind(addr: impl ToSocketAddrs) -> Result<Self, BindError> {
         let socket = UdpSocket::bind(addr)?;
 
         Ok(Self { socket })
@@ -77,7 +77,7 @@ impl Inner {
         Ok(self.socket.peer_addr()?)
     }
 
-    pub fn try_clone(&self) -> Result<Self, error::BindError> {
+    pub fn try_clone(&self) -> Result<Self, BindError> {
         let socket = self.socket.try_clone()?;
 
         Ok(Inner { socket })
