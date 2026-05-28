@@ -1,4 +1,10 @@
-use crate::{traits::Bytes, udp_net::inner::Inner};
+use std::net::{SocketAddr, ToSocketAddrs};
+
+use crate::{
+    error as io_error,
+    traits::Bytes,
+    udp_net::{error, inner::Inner},
+};
 
 #[derive(Debug)]
 pub struct UdpNetReceiver<const BUF_SIZE: usize, P>
@@ -6,14 +12,42 @@ where
     P: Bytes,
 {
     inner: Inner<P>,
-    recv_buf: [u8; BUF_SIZE],
+    buf: [u8; BUF_SIZE],
 }
 
 impl<const BUF_SIZE: usize, P> UdpNetReceiver<BUF_SIZE, P>
 where
     P: Bytes,
 {
-    pub(super) fn new(inner: Inner<P>, recv_buf: [u8; BUF_SIZE]) -> Self {
-        Self { inner, recv_buf }
+    pub(super) fn new(inner: Inner<P>, buf: [u8; BUF_SIZE]) -> Self {
+        Self { inner, buf }
+    }
+
+    pub fn connect(&self, addr: impl ToSocketAddrs) -> Result<(), io_error::ConnectError> {
+        self.inner.connect(addr)
+    }
+
+    pub fn peek(&mut self) -> Result<P, error::PeekError> {
+        Ok(self.inner.peek(&mut self.buf)?)
+    }
+
+    pub fn peek_from(&mut self) -> Result<(P, SocketAddr), error::PeekError> {
+        Ok(self.inner.peek_from(&mut self.buf)?)
+    }
+
+    pub fn recv(&mut self) -> Result<P, error::RecvError> {
+        Ok(self.inner.recv(&mut self.buf)?)
+    }
+
+    pub fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError> {
+        Ok(self.inner.recv_from(&mut self.buf)?)
+    }
+
+    pub fn local_addr(&self) -> Result<SocketAddr, io_error::LocalAddrError> {
+        self.inner.local_addr()
+    }
+
+    pub fn peer_addr(&self) -> Result<SocketAddr, io_error::PeerAddrError> {
+        self.inner.peer_addr()
     }
 }
