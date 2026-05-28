@@ -3,7 +3,7 @@ pub enum SendError {
     #[error("{0}")]
     SendError(#[from] crate::error::SendError),
     #[error("{0}")]
-    ToBytes(#[from] crate::traits::bytable::InsufficientBuffer),
+    ToBytes(#[from] crate::traits::InsufficientBuffer),
 }
 
 pub type PeekError = RecvError;
@@ -13,5 +13,5 @@ pub enum RecvError {
     #[error("{0}")]
     RecvError(#[from] crate::error::RecvError),
     #[error("{0}")]
-    FromBytes(#[from] crate::traits::bytable::FromByteError),
+    FromBytes(#[from] crate::traits::FromByteError),
 }
