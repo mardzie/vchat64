@@ -3,7 +3,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use crate::{
     error::{self as io_error, ConnectError},
     traits::Bytes,
-    udp_net::{error, inner::Inner},
+    udp_net::{error, inner::Inner, transmission::Sender},
 };
 
 #[derive(Debug)]
@@ -27,23 +27,32 @@ where
         self.inner.connect(addr)
     }
 
-    pub fn send(&mut self, packet: &P) -> Result<(), error::SendError> {
+    pub fn local_addr(&self) -> Result<SocketAddr, io_error::LocalAddrError> {
+        self.inner.local_addr()
+    }
+
+    pub fn peer_addr(&self) -> Result<SocketAddr, io_error::PeerAddrError> {
+        self.inner.peer_addr()
+    }
+}
+
+impl<const BUF_SIZE: usize, P> Sender<P> for UdpNetSender<BUF_SIZE, P>
+where
+    P: Bytes,
+{
+    fn send(&mut self, packet: &P) -> Result<(), error::SendError> {
         self.inner.send(packet, &mut self.buf)?;
 
         Ok(())
     }
 
-    pub fn send_to(
-        &mut self,
-        packet: &P,
-        addr: impl ToSocketAddrs,
-    ) -> Result<(), error::SendError> {
+    fn send_to(&mut self, packet: &P, addr: impl ToSocketAddrs) -> Result<(), error::SendError> {
         self.inner.send_to(packet, addr, &mut self.buf)?;
 
         Ok(())
     }
 
-    pub fn send_to_all(
+    fn send_to_all(
         &mut self,
         packet: &P,
         addrs: &[impl ToSocketAddrs],
@@ -51,13 +60,5 @@ where
         self.inner.send_to_all(packet, addrs, &mut self.buf)?;
 
         Ok(())
-    }
-
-    pub fn local_addr(&self) -> Result<SocketAddr, io_error::LocalAddrError> {
-        self.inner.local_addr()
-    }
-
-    pub fn peer_addr(&self) -> Result<SocketAddr, io_error::PeerAddrError> {
-        self.inner.peer_addr()
     }
 }

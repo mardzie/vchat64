@@ -3,7 +3,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use crate::{
     error as io_error,
     traits::Bytes,
-    udp_net::{error, inner::Inner},
+    udp_net::{error, inner::Inner, transmission::Receiver},
 };
 
 #[derive(Debug)]
@@ -27,27 +27,32 @@ where
         self.inner.connect(addr)
     }
 
-    pub fn peek(&mut self) -> Result<P, error::PeekError> {
-        Ok(self.inner.peek(&mut self.buf)?)
-    }
-
-    pub fn peek_from(&mut self) -> Result<(P, SocketAddr), error::PeekError> {
-        Ok(self.inner.peek_from(&mut self.buf)?)
-    }
-
-    pub fn recv(&mut self) -> Result<P, error::RecvError> {
-        Ok(self.inner.recv(&mut self.buf)?)
-    }
-
-    pub fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError> {
-        Ok(self.inner.recv_from(&mut self.buf)?)
-    }
-
     pub fn local_addr(&self) -> Result<SocketAddr, io_error::LocalAddrError> {
         self.inner.local_addr()
     }
 
     pub fn peer_addr(&self) -> Result<SocketAddr, io_error::PeerAddrError> {
         self.inner.peer_addr()
+    }
+}
+
+impl<const BUF_SIZE: usize, P> Receiver<P> for UdpNetReceiver<BUF_SIZE, P>
+where
+    P: Bytes,
+{
+    fn peek(&mut self) -> Result<P, error::PeekError> {
+        Ok(self.inner.peek(&mut self.buf)?)
+    }
+
+    fn peek_from(&mut self) -> Result<(P, SocketAddr), error::PeekError> {
+        Ok(self.inner.peek_from(&mut self.buf)?)
+    }
+
+    fn recv(&mut self) -> Result<P, error::RecvError> {
+        Ok(self.inner.recv(&mut self.buf)?)
+    }
+
+    fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError> {
+        Ok(self.inner.recv_from(&mut self.buf)?)
     }
 }

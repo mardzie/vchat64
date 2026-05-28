@@ -3,11 +3,17 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use crate::{
     error as io_error,
     traits::Bytes,
-    udp_net::{inner::Inner, udp_net_receiver::UdpNetReceiver, udp_net_sender::UdpNetSender},
+    udp_net::{
+        inner::Inner,
+        transmission::{Receiver, Sender},
+        udp_net_receiver::UdpNetReceiver,
+        udp_net_sender::UdpNetSender,
+    },
 };
 
 pub mod error;
 pub(self) mod inner;
+pub mod transmission;
 pub mod udp_net_receiver;
 pub mod udp_net_sender;
 
@@ -65,48 +71,6 @@ where
         self.inner.connect(addr)
     }
 
-    pub fn send(&mut self, packet: &P) -> Result<(), error::SendError> {
-        self.inner.send(packet, &mut self.buf)?;
-
-        Ok(())
-    }
-
-    pub fn send_to(
-        &mut self,
-        packet: &P,
-        addr: impl ToSocketAddrs,
-    ) -> Result<(), error::SendError> {
-        self.inner.send_to(packet, addr, &mut self.buf)?;
-
-        Ok(())
-    }
-
-    pub fn send_to_all(
-        &mut self,
-        packet: &P,
-        addrs: &[impl ToSocketAddrs],
-    ) -> Result<(), error::SendError> {
-        self.inner.send_to_all(packet, addrs, &mut self.buf)?;
-
-        Ok(())
-    }
-
-    pub fn peek(&mut self) -> Result<P, error::PeekError> {
-        Ok(self.inner.peek(&mut self.buf)?)
-    }
-
-    pub fn peek_from(&mut self) -> Result<(P, SocketAddr), error::PeekError> {
-        Ok(self.inner.peek_from(&mut self.buf)?)
-    }
-
-    pub fn recv(&mut self) -> Result<P, error::RecvError> {
-        Ok(self.inner.recv(&mut self.buf)?)
-    }
-
-    pub fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError> {
-        Ok(self.inner.recv_from(&mut self.buf)?)
-    }
-
     pub fn local_addr(&self) -> Result<SocketAddr, io_error::LocalAddrError> {
         self.inner.local_addr()
     }
@@ -122,5 +86,53 @@ where
             UdpNetSender::new(self.inner.try_clone()?, [0u8; BUF_SIZE]),
             UdpNetReceiver::new(self.inner, self.buf),
         ))
+    }
+}
+
+impl<const BUF_SIZE: usize, P> Sender<P> for UdpNet<BUF_SIZE, P>
+where
+    P: Bytes,
+{
+    fn send(&mut self, packet: &P) -> Result<(), error::SendError> {
+        self.inner.send(packet, &mut self.buf)?;
+
+        Ok(())
+    }
+
+    fn send_to(&mut self, packet: &P, addr: impl ToSocketAddrs) -> Result<(), error::SendError> {
+        self.inner.send_to(packet, addr, &mut self.buf)?;
+
+        Ok(())
+    }
+
+    fn send_to_all(
+        &mut self,
+        packet: &P,
+        addrs: &[impl ToSocketAddrs],
+    ) -> Result<(), error::SendError> {
+        self.inner.send_to_all(packet, addrs, &mut self.buf)?;
+
+        Ok(())
+    }
+}
+
+impl<const BUF_SIZE: usize, P> Receiver<P> for UdpNet<BUF_SIZE, P>
+where
+    P: Bytes,
+{
+    fn peek(&mut self) -> Result<P, error::PeekError> {
+        Ok(self.inner.peek(&mut self.buf)?)
+    }
+
+    fn peek_from(&mut self) -> Result<(P, SocketAddr), error::PeekError> {
+        Ok(self.inner.peek_from(&mut self.buf)?)
+    }
+
+    fn recv(&mut self) -> Result<P, error::RecvError> {
+        Ok(self.inner.recv(&mut self.buf)?)
+    }
+
+    fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError> {
+        Ok(self.inner.recv_from(&mut self.buf)?)
     }
 }
