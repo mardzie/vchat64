@@ -37,6 +37,7 @@ where
         Ok(self.socket.connect(addr)?)
     }
 
+    #[allow(dead_code)]
     pub fn send(&self, packet: &P, buf: &mut [u8]) -> Result<(), SendError> {
         let len = packet.to_bytes(buf)?;
         let _ = self
@@ -47,6 +48,7 @@ where
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn send_to(
         &self,
         packet: &P,
@@ -62,6 +64,7 @@ where
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn send_to_all(
         &self,
         packet: &P,
@@ -79,6 +82,7 @@ where
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn peek(&self, buf: &mut [u8]) -> Result<P, PeekError> {
         let len = self
             .socket
@@ -87,6 +91,7 @@ where
         Ok(P::from_bytes(&buf[..len])?)
     }
 
+    #[allow(dead_code)]
     pub fn peek_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), PeekError> {
         let (len, addr) = self
             .socket
@@ -97,6 +102,7 @@ where
         Ok((packet, addr))
     }
 
+    #[allow(dead_code)]
     pub fn recv(&self, buf: &mut [u8]) -> Result<P, RecvError> {
         let len = self
             .socket
@@ -105,6 +111,7 @@ where
         Ok(P::from_bytes(&buf[..len])?)
     }
 
+    #[allow(dead_code)]
     pub fn recv_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), RecvError> {
         let (len, addr) = self
             .socket
