@@ -12,6 +12,7 @@ where
     P: Bytes,
 {
     inner: Inner<P>,
+    #[allow(dead_code)]
     buf: [u8; BUF_SIZE],
 }
 
