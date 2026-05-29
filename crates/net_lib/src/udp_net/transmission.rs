@@ -2,6 +2,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 
 use crate::{traits::Bytes, udp_net::error};
 
+#[allow(dead_code)]
 pub trait Sender<P: Bytes> {
     fn send(&mut self, packet: &P) -> Result<(), error::SendError>;
 
@@ -14,6 +15,7 @@ pub trait Sender<P: Bytes> {
     ) -> Result<(), error::SendError>;
 }
 
+#[allow(dead_code)]
 pub trait Receiver<P: Bytes> {
     fn peek(&mut self) -> Result<P, error::PeekError>;
 
