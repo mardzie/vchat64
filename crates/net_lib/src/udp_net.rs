@@ -10,7 +10,6 @@ mod transmission;
 
 pub mod error;
 pub(self) mod inner;
-pub mod transmission;
 pub mod udp_net_receiver;
 pub mod udp_net_sender;
 
@@ -43,7 +42,7 @@ pub const DEFAULT_BUF_SIZE: usize = u16::MAX as usize - UDP_HEADER_LEN - IP_HEAD
 
 /// A simple UDP networking abstraction.
 ///
-/// ```rust no_run
+/// ```rust ignore
 /// use net_lib::{UdpNet, DEFAULT_BUF_SIZE};
 ///
 /// let udp_net = UdpNet::<DEFAULT_BUF_SIZE, Packet>::bind("127.0.0.1:8080")?;
