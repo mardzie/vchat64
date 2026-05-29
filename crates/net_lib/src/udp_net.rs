@@ -31,7 +31,7 @@ const UDP_CHECKSUM_LEN: usize = 2;
 /// | Destination Port | 16 bits |
 /// | Length           | 16 bits |
 /// | Checksum         | 16 bits |
-/// 
+///
 /// = 64 bits (8 bytes)
 const UDP_HEADER_LEN: usize = PORT_LEN + PORT_LEN + UDP_LENGTH_LEN + UDP_CHECKSUM_LEN;
 /// IPv4 average header size.
@@ -44,10 +44,10 @@ pub const DEFAULT_BUF_SIZE: usize = u16::MAX as usize - UDP_HEADER_LEN - IP_HEAD
 
 /// A simple UDP networking abstraction.
 ///
-/// ```rust
+/// ```rust no_run
 /// use net_lib::{UdpNet, DEFAULT_BUF_SIZE};
 ///
-/// let udp_net = UdpNet<DEFAULT_BUF_SIZE>::bind("127.0.0.1:8080")?;
+/// let udp_net = UdpNet::<DEFAULT_BUF_SIZE, Packet>::bind("127.0.0.1:8080")?;
 /// ```
 #[derive(Debug)]
 pub struct UdpNet<const BUF_SIZE: usize, P>
