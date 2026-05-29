@@ -3,19 +3,18 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use crate::{
     error as io_error,
     traits::Bytes,
-    udp_net::{
-        inner::Inner,
-        transmission::{Receiver, Sender},
-        udp_net_receiver::UdpNetReceiver,
-        udp_net_sender::UdpNetSender,
-    },
+    udp_net::{inner::Inner, udp_net_receiver::UdpNetReceiver, udp_net_sender::UdpNetSender},
 };
+
+mod transmission;
 
 pub mod error;
 pub(self) mod inner;
 pub mod transmission;
 pub mod udp_net_receiver;
 pub mod udp_net_sender;
+
+pub use transmission::{Receiver, Sender};
 
 /// A port has 16 bits.
 const PORT_LEN: usize = 2;
