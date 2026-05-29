@@ -13,14 +13,14 @@ where
 {
     inner: Inner<P>,
     #[allow(dead_code)]
-    buf: [u8; BUF_SIZE],
+    buf: Box<[u8]>,
 }
 
 impl<const BUF_SIZE: usize, P> UdpNetReceiver<BUF_SIZE, P>
 where
     P: Bytes,
 {
-    pub(super) fn new(inner: Inner<P>, buf: [u8; BUF_SIZE]) -> Self {
+    pub(super) fn new(inner: Inner<P>, buf: Box<[u8]>) -> Self {
         Self { inner, buf }
     }
 

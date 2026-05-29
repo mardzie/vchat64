@@ -35,7 +35,6 @@ const IP_HEADER_LEN: usize = 40;
 /// The default receive buffer size.
 ///
 /// `u16::MAX - UDP_HEADER_LEN (8 bytes) - IP_HEADER_LEN (40 bytes)`
-#[allow(unused)]
 pub const DEFAULT_BUF_SIZE: usize = u16::MAX as usize - UDP_HEADER_LEN - IP_HEADER_LEN;
 
 /// A simple UDP networking abstraction.
@@ -51,7 +50,7 @@ where
     P: Bytes,
 {
     inner: Inner<P>,
-    buf: [u8; BUF_SIZE],
+    buf: Box<[u8]>,
 }
 
 impl<const BUF_SIZE: usize, P> UdpNet<BUF_SIZE, P>
@@ -61,7 +60,7 @@ where
     pub fn bind(addr: impl ToSocketAddrs) -> Result<Self, io_error::BindError> {
         Ok(Self {
             inner: Inner::bind(addr)?,
-            buf: [0u8; BUF_SIZE],
+            buf: Box::new([0u8; BUF_SIZE]),
         })
     }
 
@@ -81,7 +80,7 @@ where
         self,
     ) -> Result<(UdpNetSender<BUF_SIZE, P>, UdpNetReceiver<BUF_SIZE, P>), io_error::BindError> {
         Ok((
-            UdpNetSender::new(self.inner.try_clone()?, [0u8; BUF_SIZE]),
+            UdpNetSender::new(self.inner.try_clone()?, Box::new([0u8; BUF_SIZE])),
             UdpNetReceiver::new(self.inner, self.buf),
         ))
     }

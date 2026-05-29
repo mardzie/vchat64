@@ -37,8 +37,7 @@ where
         Ok(self.socket.connect(addr)?)
     }
 
-    #[allow(dead_code)]
-    pub fn send(&self, packet: &P, buf: &mut [u8]) -> Result<(), SendError> {
+    pub fn send(&self, packet: &P, buf: &mut Box<[u8]>) -> Result<(), SendError> {
         let len = packet.to_bytes(buf)?;
         let _ = self
             .socket
@@ -48,12 +47,11 @@ where
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub fn send_to(
         &self,
         packet: &P,
         addr: impl ToSocketAddrs,
-        buf: &mut [u8],
+        buf: &mut Box<[u8]>,
     ) -> Result<(), SendError> {
         let len = packet.to_bytes(buf)?;
         let _ = self
@@ -64,12 +62,11 @@ where
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub fn send_to_all(
         &self,
         packet: &P,
         addrs: &[impl ToSocketAddrs],
-        buf: &mut [u8],
+        buf: &mut Box<[u8]>,
     ) -> Result<(), SendError> {
         let len = packet.to_bytes(buf)?;
         for addr in addrs {
@@ -82,8 +79,7 @@ where
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub fn peek(&self, buf: &mut [u8]) -> Result<P, PeekError> {
+    pub fn peek(&self, buf: &mut Box<[u8]>) -> Result<P, PeekError> {
         let len = self
             .socket
             .peek(buf)
@@ -91,8 +87,7 @@ where
         Ok(P::from_bytes(&buf[..len])?)
     }
 
-    #[allow(dead_code)]
-    pub fn peek_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), PeekError> {
+    pub fn peek_from(&self, buf: &mut Box<[u8]>) -> Result<(P, SocketAddr), PeekError> {
         let (len, addr) = self
             .socket
             .peek_from(buf)
@@ -102,8 +97,7 @@ where
         Ok((packet, addr))
     }
 
-    #[allow(dead_code)]
-    pub fn recv(&self, buf: &mut [u8]) -> Result<P, RecvError> {
+    pub fn recv(&self, buf: &mut Box<[u8]>) -> Result<P, RecvError> {
         let len = self
             .socket
             .recv(buf)
@@ -111,8 +105,7 @@ where
         Ok(P::from_bytes(&buf[..len])?)
     }
 
-    #[allow(dead_code)]
-    pub fn recv_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), RecvError> {
+    pub fn recv_from(&self, buf: &mut Box<[u8]>) -> Result<(P, SocketAddr), RecvError> {
         let (len, addr) = self
             .socket
             .recv_from(buf)
@@ -175,7 +168,7 @@ mod tests {
     #[test]
     fn test_inner_connect() {
         let (inner1, addr1, inner2, addr2) = get_inners();
-        let mut buf = [0u8; 1];
+        let mut buf: Box<[u8]> = Box::new([0u8; 1]);
 
         inner1.connect(addr2).unwrap();
         inner2.connect(addr1).unwrap();
@@ -202,7 +195,7 @@ mod tests {
     #[test]
     fn test_inner_unconnected() {
         let (inner1, addr1, inner2, addr2) = get_inners();
-        let mut buf = [0u8; 1];
+        let mut buf: Box<[u8]> = Box::new([0u8; 1]);
 
         let first_packet = Packet::Option1;
         inner1.send_to(&first_packet, addr2, &mut buf).unwrap();
@@ -233,7 +226,7 @@ mod tests {
     fn test_inner_send_to_all() {
         let (sender, send_addr, recv1, addr1) = get_inners();
         let (recv2, addr2, recv3, addr3) = get_inners();
-        let mut buf = [0u8; 1];
+        let mut buf: Box<[u8]> = Box::new([0u8; 1]);
 
         let sent_packet = Packet::Option2;
         sender
