@@ -25,12 +25,14 @@ const UDP_LENGTH_LEN: usize = 2;
 const UDP_CHECKSUM_LEN: usize = 2;
 /// A UDP header:
 ///
-/// | Field            | Size     |
-/// | ---------------- | -------- |
-/// | Source Port      | 16 bytes |
-/// | Destination Port | 16 bytes |
-/// | Length           | 16 bytes |
-/// | Checksum         | 16 bytes |
+/// | Field            | Size    |
+/// | ---------------- | ------- |
+/// | Source Port      | 16 bits |
+/// | Destination Port | 16 bits |
+/// | Length           | 16 bits |
+/// | Checksum         | 16 bits |
+/// 
+/// = 64 bits (8 bytes)
 const UDP_HEADER_LEN: usize = PORT_LEN + PORT_LEN + UDP_LENGTH_LEN + UDP_CHECKSUM_LEN;
 /// IPv4 average header size.
 const IP_HEADER_LEN: usize = 40;
