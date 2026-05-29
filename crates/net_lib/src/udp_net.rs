@@ -38,14 +38,14 @@ const IP_HEADER_LEN: usize = 40;
 ///
 /// `u16::MAX - UDP_HEADER_LEN (8 bytes) - IP_HEADER_LEN (40 bytes)`
 #[allow(unused)]
-pub const DEFAULT_RECV_BUF_SIZE: usize = u16::MAX as usize - UDP_HEADER_LEN - IP_HEADER_LEN;
+pub const DEFAULT_BUF_SIZE: usize = u16::MAX as usize - UDP_HEADER_LEN - IP_HEADER_LEN;
 
 /// A simple UDP networking abstraction.
 ///
 /// ```rust
-/// use net_lib::{UdpNet, DEFAULT_RECV_BUF_SIZE};
+/// use net_lib::{UdpNet, DEFAULT_BUF_SIZE};
 ///
-/// let udp_net = UdpNet<DEFAULT_RECV_BUF_SIZE>::bind("127.0.0.1:8080")?;
+/// let udp_net = UdpNet<DEFAULT_BUF_SIZE>::bind("127.0.0.1:8080")?;
 /// ```
 #[derive(Debug)]
 pub struct UdpNet<const BUF_SIZE: usize, P>
