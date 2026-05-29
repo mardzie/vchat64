@@ -37,12 +37,14 @@ where
         Ok(self.socket.connect(addr)?)
     }
 
-    pub fn send(&self, packet: &P, buf: &mut [u8]) -> Result<usize, SendError> {
+    pub fn send(&self, packet: &P, buf: &mut [u8]) -> Result<(), SendError> {
         let len = packet.to_bytes(buf)?;
-        Ok(self
+        let _ = self
             .socket
             .send(&buf[..len])
-            .map_err(|e| io_error::SendError::from(e))?)
+            .map_err(|e| io_error::SendError::from(e))?;
+
+        Ok(())
     }
 
     pub fn send_to(
@@ -50,12 +52,14 @@ where
         packet: &P,
         addr: impl ToSocketAddrs,
         buf: &mut [u8],
-    ) -> Result<usize, SendError> {
+    ) -> Result<(), SendError> {
         let len = packet.to_bytes(buf)?;
-        Ok(self
+        let _ = self
             .socket
             .send_to(&buf[..len], addr)
-            .map_err(|e| io_error::SendError::from(e))?)
+            .map_err(|e| io_error::SendError::from(e))?;
+
+        Ok(())
     }
 
     pub fn send_to_all(
@@ -66,7 +70,8 @@ where
     ) -> Result<(), SendError> {
         let len = packet.to_bytes(buf)?;
         for addr in addrs {
-            self.socket
+            let _ = self
+                .socket
                 .send_to(&buf[..len], addr)
                 .map_err(|e| io_error::SendError::from(e))?;
         }
