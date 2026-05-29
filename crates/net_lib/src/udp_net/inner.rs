@@ -139,3 +139,135 @@ where
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::traits::{FromBytes, ToBytes};
+
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    enum Packet {
+        Option1,
+        Option2,
+    }
+
+    impl ToBytes for Packet {
+        fn to_bytes(&self, buf: &mut [u8]) -> Result<usize, crate::traits::InsufficientBuffer> {
+            buf[0] = self.clone() as u8;
+            Ok(1)
+        }
+    }
+
+    impl FromBytes for Packet {
+        fn from_bytes(buf: &[u8]) -> Result<Self, crate::traits::FromByteError> {
+            match buf[0] {
+                0 => Ok(Self::Option1),
+                1 => Ok(Self::Option2),
+                _ => Err(crate::traits::FromByteError::InvalidData {
+                    offset: 0,
+                    desc: "invalid value for Packet".to_string(),
+                }),
+            }
+        }
+    }
+
+    #[test]
+    fn test_inner_connect() {
+        let (inner1, addr1, inner2, addr2) = get_inners();
+        let mut buf = [0u8; 1];
+
+        inner1.connect(addr2).unwrap();
+        inner2.connect(addr1).unwrap();
+
+        let first_packet = Packet::Option1;
+        inner1.send(&first_packet, &mut buf).unwrap();
+
+        let first_peeked_packet = inner2.peek(&mut buf).unwrap();
+        assert_eq!(first_peeked_packet, first_packet);
+        let first_recv_packet = inner2.recv(&mut buf).unwrap();
+        assert_eq!(first_recv_packet, first_packet);
+        assert_eq!(first_peeked_packet, first_recv_packet);
+
+        let second_packet = Packet::Option2;
+        inner2.send(&second_packet, &mut buf).unwrap();
+
+        let second_peeked_packet = inner1.peek(&mut buf).unwrap();
+        assert_eq!(second_peeked_packet, second_packet);
+        let second_recv_packet = inner1.recv(&mut buf).unwrap();
+        assert_eq!(second_recv_packet, second_packet);
+        assert_eq!(second_peeked_packet, second_recv_packet);
+    }
+
+    #[test]
+    fn test_inner_unconnected() {
+        let (inner1, addr1, inner2, addr2) = get_inners();
+        let mut buf = [0u8; 1];
+
+        let first_packet = Packet::Option1;
+        inner1.send_to(&first_packet, addr2, &mut buf).unwrap();
+
+        let (first_peeked_packet, peeked_addr) = inner2.peek_from(&mut buf).unwrap();
+        assert_eq!(peeked_addr, addr1);
+        assert_eq!(first_peeked_packet, first_packet);
+        let (first_recv_packet, addr) = inner2.recv_from(&mut buf).unwrap();
+        assert_eq!(addr, addr1);
+        assert_eq!(first_recv_packet, first_packet);
+        assert_eq!(peeked_addr, addr);
+        assert_eq!(first_peeked_packet, first_recv_packet);
+
+        let second_packet = Packet::Option2;
+        inner2.send_to(&second_packet, addr1, &mut buf).unwrap();
+
+        let (second_peeked_packet, peeked_addr) = inner1.peek_from(&mut buf).unwrap();
+        assert_eq!(peeked_addr, addr2);
+        assert_eq!(second_peeked_packet, second_packet);
+        let (second_recv_packet, addr) = inner1.recv_from(&mut buf).unwrap();
+        assert_eq!(addr, addr2);
+        assert_eq!(second_recv_packet, second_packet);
+        assert_eq!(peeked_addr, addr);
+        assert_eq!(second_peeked_packet, second_recv_packet);
+    }
+
+    #[test]
+    fn test_inner_send_to_all() {
+        let (sender, send_addr, recv1, addr1) = get_inners();
+        let (recv2, addr2, recv3, addr3) = get_inners();
+        let mut buf = [0u8; 1];
+
+        let sent_packet = Packet::Option2;
+        sender
+            .send_to_all(&sent_packet, &[addr1, addr2, addr3], &mut buf)
+            .unwrap();
+
+        let (packet, addr) = recv1.recv_from(&mut buf).unwrap();
+        assert_eq!(addr, send_addr);
+        assert_eq!(packet, sent_packet);
+        recv1.send_to(&Packet::Option1, addr, &mut buf).unwrap();
+
+        let (packet, addr) = recv2.recv_from(&mut buf).unwrap();
+        assert_eq!(addr, send_addr);
+        assert_eq!(packet, sent_packet);
+        recv2.send_to(&Packet::Option1, addr, &mut buf).unwrap();
+
+        let (packet, addr) = recv3.recv_from(&mut buf).unwrap();
+        assert_eq!(addr, send_addr);
+        assert_eq!(packet, sent_packet);
+        recv3.send_to(&Packet::Option1, addr, &mut buf).unwrap();
+
+        for _ in 0..3 {
+            let (packet, addr) = sender.recv_from(&mut buf).unwrap();
+            assert!(addr == addr1 || addr == addr2 || addr == addr3);
+            assert_eq!(packet, Packet::Option1);
+        }
+    }
+
+    fn get_inners() -> (Inner<Packet>, SocketAddr, Inner<Packet>, SocketAddr) {
+        let inner1: Inner<Packet> = Inner::bind("127.0.0.1:0").unwrap();
+        let addr1 = inner1.local_addr().unwrap();
+        let inner2: Inner<Packet> = Inner::bind("127.0.0.1:0").unwrap();
+        let addr2 = inner2.local_addr().unwrap();
+
+        (inner1, addr1, inner2, addr2)
+    }
+}
