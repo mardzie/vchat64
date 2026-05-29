@@ -30,19 +30,27 @@ const UDP_CHECKSUM_LEN: usize = 2;
 ///
 /// = 64 bits (8 bytes)
 const UDP_HEADER_LEN: usize = PORT_LEN + PORT_LEN + UDP_LENGTH_LEN + UDP_CHECKSUM_LEN;
-/// IPv4 average header size.
+/// IPv4 header size is 20 bytes usually.
+/// IPv6 header size is 40 bytes.
 const IP_HEADER_LEN: usize = 40;
-/// The default receive buffer size.
+/// The maximum buffer size.
+/// It includes a IPv6 header of 40 bytes.
 ///
 /// `u16::MAX - UDP_HEADER_LEN (8 bytes) - IP_HEADER_LEN (40 bytes)`
-pub const DEFAULT_BUF_SIZE: usize = u16::MAX as usize - UDP_HEADER_LEN - IP_HEADER_LEN;
+pub const MAX_BUF_SIZE: usize = u16::MAX as usize - UDP_HEADER_LEN - IP_HEADER_LEN;
+/// The common MTU (Maximum Transmission Unit) size of networks is 1500 bytes.
+const STANDARD_MTU: usize = 1500;
+/// The network safe size that fits in the common MTU (Maximum Transmission Unit) limit.
+///
+/// This constant respects IPv4 normal headers and IPv6 headers.
+pub const SAFE_BUF_SIZE: usize = STANDARD_MTU - UDP_HEADER_LEN - IP_HEADER_LEN;
 
 /// A simple UDP networking abstraction.
 ///
 /// ```rust ignore
-/// use net_lib::{UdpNet, DEFAULT_BUF_SIZE};
+/// use net_lib::{UdpNet, SAFE_BUF_SIZE};
 ///
-/// let udp_net = UdpNet::<DEFAULT_BUF_SIZE, Packet>::bind("127.0.0.1:8080")?;
+/// let udp_net = UdpNet::<SAFE_BUF_SIZE, Packet>::bind("127.0.0.1:0")?;
 /// ```
 #[derive(Debug)]
 pub struct UdpNet<const BUF_SIZE: usize, P>
