@@ -13,39 +13,28 @@ pub use transmission::{Receiver, Sender};
 pub use udp_net_receiver::UdpNetReceiver;
 pub use udp_net_sender::UdpNetSender;
 
-/// A port has 16 bits.
-const PORT_LEN: usize = 2;
-/// The maximum amount of bytes a UDP packet can carry. This is limited by the 16 bits that is used to store the length of the UDP payload.
-const UDP_LENGTH_LEN: usize = 2;
-/// The length of the UDP headers checksum field.
-const UDP_CHECKSUM_LEN: usize = 2;
-/// A UDP header:
-///
-/// | Field            | Size    |
-/// | ---------------- | ------- |
-/// | Source Port      | 16 bits |
-/// | Destination Port | 16 bits |
-/// | Length           | 16 bits |
-/// | Checksum         | 16 bits |
-///
-/// = 64 bits (8 bytes)
-const UDP_HEADER_LEN: usize = PORT_LEN + PORT_LEN + UDP_LENGTH_LEN + UDP_CHECKSUM_LEN;
-/// IPv4 header size is 20 bytes usually.
-/// IPv6 header size is 40 bytes.
-const IP_HEADER_LEN: usize = 40;
-/// The common MTU (Maximum Transmission Unit) size of networks is 1500 bytes.
-const STANDARD_MTU: usize = 1500;
 /// This is used to measure if a datagram exceeded the buffer size.
-const SAFETY_BYTE: usize = 1;
-const MAX_DATAGRAM_SIZE: usize = u16::MAX as usize;
-/// The maximum buffer size the size of the biggest possible datagram.
+const TRUNCATION_BYTE: usize = 1;
+
+/// IPv4 normally is 20 bytes.
+const IPV4_HEADER_SIZE: usize = 20;
+const IPV4_OPTIONS_SIZE: usize = 40;
+const IPV4_MIN_MTU_SIZE: usize = 576;
+/// IPv6 has 40 bytes.
+const IPV6_HEADER_SIZE: usize = 40;
+const IPV6_MIN_MTU_SIZE: usize = 1280;
+
+const UDP_HEADER_SIZE: usize = 8;
+const MAX_DATAGRAM_SIZE: usize = u16::MAX as usize - IPV4_HEADER_SIZE - UDP_HEADER_SIZE;
+
+/// The maximum buffer size. The size of the biggest possible datagram minus Headers.
 ///
-/// More bytes would not make sense.
-pub const MAX_BUF_SIZE: usize = MAX_DATAGRAM_SIZE;
-/// The network safe size that fits in the common MTU (Maximum Transmission Unit) limit.
-///
-/// This constant respects IPv4 normal headers and IPv6 headers.
-pub const SAFE_BUF_SIZE: usize = STANDARD_MTU - UDP_HEADER_LEN - IP_HEADER_LEN + SAFETY_BYTE;
+/// Does not include 1 truncation byte because its not needed.
+pub const LOOPBACK_BUF_SIZE: usize = MAX_DATAGRAM_SIZE;
+pub const INTERNET_BUF_SIZE: usize =
+    IPV6_MIN_MTU_SIZE - IPV6_HEADER_SIZE - UDP_HEADER_SIZE + TRUNCATION_BYTE;
+pub const INTERNET_BUF_SIZE_LEGACY: usize =
+    IPV4_MIN_MTU_SIZE - (IPV4_HEADER_SIZE + IPV4_OPTIONS_SIZE) - UDP_HEADER_SIZE + TRUNCATION_BYTE;
 
 /// A simple UDP networking abstraction.
 ///
