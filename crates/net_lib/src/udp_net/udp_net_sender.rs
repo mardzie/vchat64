@@ -3,7 +3,7 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use crate::{
     error::{self as io_error, IoConnectError},
     traits::Bytes,
-    udp_net::{ResizeBuf, Sender, error, inner::Inner},
+    udp_net::{BufOps, Sender, error, inner::Inner, resize_buffer},
 };
 
 #[derive(Debug)]
@@ -54,12 +54,16 @@ where
     }
 }
 
-impl<P> ResizeBuf for UdpNetSender<P>
+impl<P> BufOps for UdpNetSender<P>
 where
     P: Bytes,
 {
+    fn buf_len(&self) -> usize {
+        self.buf.len()
+    }
+
     fn resize_buf(&mut self, new_len: usize) {
-        self.buf.resize(new_len, 0);
-        self.buf.shrink_to_fit();
+        assert!(new_len > 0);
+        resize_buffer(&mut self.buf, new_len);
     }
 }

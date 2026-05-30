@@ -9,7 +9,7 @@ mod udp_net_sender;
 
 pub mod error;
 
-pub use traits::{Receiver, ResizeBuf, Sender};
+pub use traits::{BufOps, Receiver, Sender};
 pub use udp_net_receiver::UdpNetReceiver;
 pub use udp_net_sender::UdpNetSender;
 
@@ -132,17 +132,26 @@ where
     }
 }
 
-impl<P> ResizeBuf for UdpNet<P>
+impl<P> BufOps for UdpNet<P>
 where
     P: Bytes,
 {
+    fn buf_len(&self) -> usize {
+        self.buf.len() - TRUNCATION_BYTE
+    }
+
     /// Resize the buffer to the new length.
     /// This will either expand or shrink the buffer.
     ///
     /// This operation can be expensive.
     /// Only use when necessary.
     fn resize_buf(&mut self, new_len: usize) {
-        self.buf.resize(new_len + TRUNCATION_BYTE, 0);
-        self.buf.shrink_to_fit();
+        assert!(new_len > 0);
+        resize_buffer(&mut self.buf, new_len + TRUNCATION_BYTE);
     }
+}
+
+fn resize_buffer(buf: &mut Vec<u8>, new_len: usize) {
+    buf.resize(new_len, 0);
+    buf.shrink_to_fit();
 }
