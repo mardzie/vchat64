@@ -52,14 +52,4 @@ where
 
         Ok(())
     }
-
-    fn send_to_all(
-        &mut self,
-        packet: &P,
-        addrs: &[impl ToSocketAddrs],
-    ) -> Result<(), error::SendError> {
-        self.inner.send_to_all(packet, addrs, &mut self.buf)?;
-
-        Ok(())
-    }
 }

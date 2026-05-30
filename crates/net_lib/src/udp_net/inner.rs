@@ -57,24 +57,7 @@ where
         let _ = self
             .socket
             .send_to(&buf[..len], addr)
-            .map_err(|e| io_error::SendError::from(e))?;
-
-        Ok(())
-    }
-
-    pub fn send_to_all(
-        &self,
-        packet: &P,
-        addrs: &[impl ToSocketAddrs],
-        buf: &mut Box<[u8]>,
-    ) -> Result<(), SendError> {
-        let len = packet.to_bytes(buf)?;
-        for addr in addrs {
-            let _ = self
-                .socket
-                .send_to(&buf[..len], addr)
-                .map_err(|e| io_error::SendError::from(e))?;
-        }
+            .map_err(|e| io_error::IoSendError::from(e))?;
 
         Ok(())
     }
@@ -220,39 +203,6 @@ mod tests {
         assert_eq!(second_recv_packet, second_packet);
         assert_eq!(peeked_addr, addr);
         assert_eq!(second_peeked_packet, second_recv_packet);
-    }
-
-    #[test]
-    fn test_inner_send_to_all() {
-        let (sender, send_addr, recv1, addr1) = get_inners();
-        let (recv2, addr2, recv3, addr3) = get_inners();
-        let mut buf: Box<[u8]> = Box::new([0u8; 1]);
-
-        let sent_packet = Packet::Option2;
-        sender
-            .send_to_all(&sent_packet, &[addr1, addr2, addr3], &mut buf)
-            .unwrap();
-
-        let (packet, addr) = recv1.recv_from(&mut buf).unwrap();
-        assert_eq!(addr, send_addr);
-        assert_eq!(packet, sent_packet);
-        recv1.send_to(&Packet::Option1, addr, &mut buf).unwrap();
-
-        let (packet, addr) = recv2.recv_from(&mut buf).unwrap();
-        assert_eq!(addr, send_addr);
-        assert_eq!(packet, sent_packet);
-        recv2.send_to(&Packet::Option1, addr, &mut buf).unwrap();
-
-        let (packet, addr) = recv3.recv_from(&mut buf).unwrap();
-        assert_eq!(addr, send_addr);
-        assert_eq!(packet, sent_packet);
-        recv3.send_to(&Packet::Option1, addr, &mut buf).unwrap();
-
-        for _ in 0..3 {
-            let (packet, addr) = sender.recv_from(&mut buf).unwrap();
-            assert!(addr == addr1 || addr == addr2 || addr == addr3);
-            assert_eq!(packet, Packet::Option1);
-        }
     }
 
     fn get_inners() -> (Inner<Packet>, SocketAddr, Inner<Packet>, SocketAddr) {

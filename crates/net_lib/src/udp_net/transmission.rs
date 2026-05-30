@@ -7,12 +7,6 @@ pub trait Sender<P: Bytes> {
     fn send(&mut self, packet: &P) -> Result<(), error::SendError>;
 
     fn send_to(&mut self, packet: &P, addr: impl ToSocketAddrs) -> Result<(), error::SendError>;
-
-    fn send_to_all(
-        &mut self,
-        packet: &P,
-        addrs: &[impl ToSocketAddrs],
-    ) -> Result<(), error::SendError>;
 }
 
 #[allow(dead_code)]
