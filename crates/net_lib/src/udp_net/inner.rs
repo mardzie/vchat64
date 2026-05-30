@@ -41,7 +41,7 @@ where
     }
 
     pub fn send(&self, packet: &P, buf: &mut [u8]) -> Result<(), SendError> {
-        let len = packet.to_bytes(buf)?;
+        let len = packet.to_bytes(Self::get_usable_buf_mut(buf))?;
         let _ = self
             .socket
             .send(&buf[..len])
@@ -56,7 +56,7 @@ where
         addr: impl ToSocketAddrs,
         buf: &mut [u8],
     ) -> Result<(), SendError> {
-        let len = packet.to_bytes(buf)?;
+        let len = packet.to_bytes(Self::get_usable_buf_mut(buf))?;
         let _ = self
             .socket
             .send_to(&buf[..len], addr)
@@ -124,6 +124,12 @@ where
         }
 
         Ok(())
+    }
+
+    /// Returns a slice without the truncation byte.
+    fn get_usable_buf_mut(buf: &mut [u8]) -> &mut [u8] {
+        let len = buf.len() - 1;
+        &mut buf[..len]
     }
 }
 
