@@ -8,7 +8,7 @@ use super::error::SendError;
 use crate::{
     error::{
         self as io_error, IoBindError, IoConnectError, IoGetSocketOption, IoLocalAddrError,
-        IoPeerAddrError, IoSetSocketOption,
+        IoPeerAddrError, IoSendError, IoSetSocketOption,
     },
     traits::Bytes,
     udp_net::{
@@ -49,17 +49,37 @@ where
         Ok(self.socket.connect(addr)?)
     }
 
-    pub fn send(&self, packet: &P, buf: &mut [u8]) -> Result<(), SendError> {
-        let len = packet.to_bytes(buf)?;
-        // Discards the number of bytes written.
-        let _ = self
-            .socket
-            .send(&buf[..len])
-            .map_err(io_error::IoSendError::from)?;
+    /// Send bytes directly to the connected address.
+    ///
+    /// The `buf`s content must be able to be turned back into `P` with the `FromBytes` trait or the receiver will get an error.
+    ///
+    /// This skips the to_bytes call and is useful if the same packet gets sent multiple times to the connected address.
+    pub fn send_bytes(&self, buf: &[u8]) -> Result<(), IoSendError> {
+        self.socket.send(buf)?;
 
         Ok(())
     }
 
+    /// Send a `P` to the connected address.
+    pub fn send(&self, packet: &P, buf: &mut [u8]) -> Result<(), SendError> {
+        let len = packet.to_bytes(buf)?;
+        self.send_bytes(&buf[..len])?;
+
+        Ok(())
+    }
+
+    /// Send bytes directly to the address.
+    ///
+    /// The `buf`s content must be able to be turned back into `P` with the `FromBytes` trait or the receiver will get an error.
+    ///
+    /// This skips the to_bytes call and is useful if the same packet gets sent multiple times to one or more addresses.
+    pub fn send_bytes_to(&self, buf: &[u8], addr: impl ToSocketAddrs) -> Result<(), IoSendError> {
+        self.socket.send_to(buf, addr)?;
+
+        Ok(())
+    }
+
+    /// Send a `P` to an address.
     pub fn send_to(
         &self,
         packet: &P,
@@ -67,21 +87,23 @@ where
         buf: &mut [u8],
     ) -> Result<(), SendError> {
         let len = packet.to_bytes(buf)?;
-        // Discards the number of bytes written.
-        let _ = self
-            .socket
-            .send_to(&buf[..len], addr)
-            .map_err(io_error::IoSendError::from)?;
+        self.send_bytes_to(&buf[..len], addr)?;
 
         Ok(())
     }
 
+    /// Peek a `P` from the connected address.
+    ///
+    /// This will not remove the `P` from the sockets received datagrams.
     pub fn peek(&self, buf: &mut [u8]) -> Result<P, PeekError> {
         let len = self.socket.peek(buf).map_err(io_error::IoPeekError::from)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
         Ok(P::from_bytes(&buf[..len])?)
     }
 
+    /// Peek a `P` from an address.
+    ///
+    /// This will not remove the `P` from the sockets received datagrams.
     pub fn peek_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), PeekError> {
         let (len, addr) = self
             .socket
@@ -93,12 +115,14 @@ where
         Ok((packet, addr))
     }
 
+    /// Receive a `P` from the connected address.
     pub fn recv(&self, buf: &mut [u8]) -> Result<P, RecvError> {
         let len = self.socket.recv(buf).map_err(io_error::IoRecvError::from)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
         Ok(P::from_bytes(&buf[..len])?)
     }
 
+    /// Receive a `P` from an address.
     pub fn recv_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), RecvError> {
         let (len, addr) = self
             .socket

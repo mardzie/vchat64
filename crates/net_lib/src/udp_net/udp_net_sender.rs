@@ -40,10 +40,22 @@ impl<P> Sender<P> for UdpNetSender<P>
 where
     P: Bytes,
 {
+    fn send_bytes(&self, buf: &[u8]) -> Result<(), io_error::IoSendError> {
+        self.inner.send_bytes(buf)
+    }
+
     fn send(&mut self, packet: &P) -> Result<(), error::SendError> {
         self.inner.send(packet, &mut self.buf)?;
 
         Ok(())
+    }
+
+    fn send_bytes_to(
+        &self,
+        buf: &[u8],
+        addr: impl ToSocketAddrs,
+    ) -> Result<(), io_error::IoSendError> {
+        self.inner.send_bytes_to(buf, addr)
     }
 
     fn send_to(&mut self, packet: &P, addr: impl ToSocketAddrs) -> Result<(), error::SendError> {
