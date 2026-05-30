@@ -24,15 +24,15 @@ where
         Self { inner, buf }
     }
 
-    pub fn connect(&self, addr: impl ToSocketAddrs) -> Result<(), io_error::ConnectError> {
+    pub fn connect(&self, addr: impl ToSocketAddrs) -> Result<(), io_error::IoConnectError> {
         self.inner.connect(addr)
     }
 
-    pub fn local_addr(&self) -> Result<SocketAddr, io_error::LocalAddrError> {
+    pub fn local_addr(&self) -> Result<SocketAddr, io_error::IoLocalAddrError> {
         self.inner.local_addr()
     }
 
-    pub fn peer_addr(&self) -> Result<SocketAddr, io_error::PeerAddrError> {
+    pub fn peer_addr(&self) -> Result<SocketAddr, io_error::IoPeerAddrError> {
         self.inner.peer_addr()
     }
 }

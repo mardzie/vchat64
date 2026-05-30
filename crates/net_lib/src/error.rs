@@ -18,7 +18,7 @@ macro_rules! io_error_enum {
     };
 }
 
-io_error_enum!(BindError, {
+io_error_enum!(IoBindError, {
     PermissionDenied,
     AddrInUse,
     InvalidInput,
@@ -29,7 +29,7 @@ io_error_enum!(BindError, {
     ReadOnlyFilesystem,
 });
 
-io_error_enum!(ConnectError, {
+io_error_enum!(IoConnectError, {
     PermissionDenied,
     AddrInUse,
     AddrNotAvailable,
@@ -40,7 +40,7 @@ io_error_enum!(ConnectError, {
     TimedOut,
 });
 
-io_error_enum!(SendError, {
+io_error_enum!(IoSendError, {
     PermissionDenied,
     WouldBlock,
     ConnectionReset,
@@ -51,9 +51,9 @@ io_error_enum!(SendError, {
     BrokenPipe,
 });
 
-pub type PeekError = RecvError;
+pub type IoPeekError = IoRecvError;
 
-io_error_enum!(RecvError, {
+io_error_enum!(IoRecvError, {
     WouldBlock,
     ConnectionRefused,
     Interrupted,
@@ -62,9 +62,9 @@ io_error_enum!(RecvError, {
     NotConnected,
 });
 
-pub type LocalAddrError = GetSocketNameError;
-pub type PeerAddrError = GetSocketNameError;
+pub type IoLocalAddrError = IoGetSocketNameError;
+pub type IoPeerAddrError = IoGetSocketNameError;
 
-io_error_enum!(GetSocketNameError, {
+io_error_enum!(IoGetSocketNameError, {
     InvalidInput,
 });

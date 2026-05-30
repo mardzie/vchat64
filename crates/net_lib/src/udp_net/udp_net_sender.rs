@@ -1,7 +1,7 @@
 use std::net::{SocketAddr, ToSocketAddrs};
 
 use crate::{
-    error::{self as io_error, ConnectError},
+    error::{self as io_error, IoConnectError},
     traits::Bytes,
     udp_net::{error, inner::Inner, transmission::Sender},
 };
@@ -24,15 +24,15 @@ where
         Self { inner, buf }
     }
 
-    pub fn connect(&mut self, addr: impl ToSocketAddrs) -> Result<(), ConnectError> {
+    pub fn connect(&self, addr: impl ToSocketAddrs) -> Result<(), IoConnectError> {
         self.inner.connect(addr)
     }
 
-    pub fn local_addr(&self) -> Result<SocketAddr, io_error::LocalAddrError> {
+    pub fn local_addr(&self) -> Result<SocketAddr, io_error::IoLocalAddrError> {
         self.inner.local_addr()
     }
 
-    pub fn peer_addr(&self) -> Result<SocketAddr, io_error::PeerAddrError> {
+    pub fn peer_addr(&self) -> Result<SocketAddr, io_error::IoPeerAddrError> {
         self.inner.peer_addr()
     }
 }

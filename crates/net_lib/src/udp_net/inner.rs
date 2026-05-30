@@ -5,7 +5,7 @@ use std::{
 
 use super::error::SendError;
 use crate::{
-    error::{self as io_error, BindError, ConnectError, LocalAddrError, PeerAddrError},
+    error::{self as io_error, IoBindError, IoConnectError, IoLocalAddrError, IoPeerAddrError},
     traits::Bytes,
     udp_net::error::{PeekError, RecvError},
 };
@@ -24,7 +24,7 @@ impl<P> Inner<P>
 where
     P: Bytes,
 {
-    pub fn bind(addr: impl ToSocketAddrs) -> Result<Self, BindError> {
+    pub fn bind(addr: impl ToSocketAddrs) -> Result<Self, IoBindError> {
         let socket = UdpSocket::bind(addr)?;
 
         Ok(Self {
@@ -33,7 +33,7 @@ where
         })
     }
 
-    pub fn connect(&self, addr: impl ToSocketAddrs) -> Result<(), ConnectError> {
+    pub fn connect(&self, addr: impl ToSocketAddrs) -> Result<(), IoConnectError> {
         Ok(self.socket.connect(addr)?)
     }
 
@@ -42,7 +42,7 @@ where
         let _ = self
             .socket
             .send(&buf[..len])
-            .map_err(|e| io_error::SendError::from(e))?;
+            .map_err(|e| io_error::IoSendError::from(e))?;
 
         Ok(())
     }
@@ -66,7 +66,7 @@ where
         let len = self
             .socket
             .peek(buf)
-            .map_err(|e| io_error::PeekError::from(e))?;
+            .map_err(|e| io_error::IoPeekError::from(e))?;
         Ok(P::from_bytes(&buf[..len])?)
     }
 
@@ -74,7 +74,7 @@ where
         let (len, addr) = self
             .socket
             .peek_from(buf)
-            .map_err(|e| io_error::PeekError::from(e))?;
+            .map_err(|e| io_error::IoPeekError::from(e))?;
         let packet = P::from_bytes(&buf[..len])?;
 
         Ok((packet, addr))
@@ -84,7 +84,7 @@ where
         let len = self
             .socket
             .recv(buf)
-            .map_err(|e| io_error::RecvError::from(e))?;
+            .map_err(|e| io_error::IoRecvError::from(e))?;
         Ok(P::from_bytes(&buf[..len])?)
     }
 
@@ -92,21 +92,21 @@ where
         let (len, addr) = self
             .socket
             .recv_from(buf)
-            .map_err(|e| io_error::RecvError::from(e))?;
+            .map_err(|e| io_error::IoRecvError::from(e))?;
         let packet = P::from_bytes(&buf[..len])?;
 
         Ok((packet, addr))
     }
 
-    pub fn local_addr(&self) -> Result<SocketAddr, LocalAddrError> {
+    pub fn local_addr(&self) -> Result<SocketAddr, IoLocalAddrError> {
         Ok(self.socket.local_addr()?)
     }
 
-    pub fn peer_addr(&self) -> Result<SocketAddr, PeerAddrError> {
+    pub fn peer_addr(&self) -> Result<SocketAddr, IoPeerAddrError> {
         Ok(self.socket.peer_addr()?)
     }
 
-    pub fn try_clone(&self) -> Result<Self, BindError> {
+    pub fn try_clone(&self) -> Result<Self, IoBindError> {
         let socket = self.socket.try_clone()?;
 
         Ok(Self {

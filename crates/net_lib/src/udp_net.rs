@@ -62,28 +62,29 @@ impl<const BUF_SIZE: usize, P> UdpNet<BUF_SIZE, P>
 where
     P: Bytes,
 {
-    pub fn bind(addr: impl ToSocketAddrs) -> Result<Self, io_error::BindError> {
+    pub fn bind(addr: impl ToSocketAddrs) -> Result<Self, io_error::IoBindError> {
         Ok(Self {
             inner: Inner::bind(addr)?,
             buf: Box::new([0u8; BUF_SIZE]),
         })
     }
 
-    pub fn connect(&self, addr: impl ToSocketAddrs) -> Result<(), io_error::ConnectError> {
+    pub fn connect(&self, addr: impl ToSocketAddrs) -> Result<(), io_error::IoConnectError> {
         self.inner.connect(addr)
     }
 
-    pub fn local_addr(&self) -> Result<SocketAddr, io_error::LocalAddrError> {
+    pub fn local_addr(&self) -> Result<SocketAddr, io_error::IoLocalAddrError> {
         self.inner.local_addr()
     }
 
-    pub fn peer_addr(&self) -> Result<SocketAddr, io_error::PeerAddrError> {
+    pub fn peer_addr(&self) -> Result<SocketAddr, io_error::IoPeerAddrError> {
         self.inner.peer_addr()
     }
 
     pub fn split(
         self,
-    ) -> Result<(UdpNetSender<BUF_SIZE, P>, UdpNetReceiver<BUF_SIZE, P>), io_error::BindError> {
+    ) -> Result<(UdpNetSender<BUF_SIZE, P>, UdpNetReceiver<BUF_SIZE, P>), io_error::IoBindError>
+    {
         Ok((
             UdpNetSender::new(self.inner.try_clone()?, Box::new([0u8; BUF_SIZE])),
             UdpNetReceiver::new(self.inner, self.buf),

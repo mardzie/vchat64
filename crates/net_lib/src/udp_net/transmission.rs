@@ -17,5 +17,5 @@ pub trait Receiver<P: Bytes> {
 
     fn recv(&mut self) -> Result<P, error::RecvError>;
 
-    fn recv_from(&mut self) -> Result<(P, SocketAddr), error::PeekError>;
+    fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError>;
 }
