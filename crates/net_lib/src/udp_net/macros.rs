@@ -7,9 +7,9 @@
 #[macro_export]
 macro_rules! socket_options {
     ($name:ident, $inner:ident) => {
-        impl<P> crate::udp_net::SocketOptions for $name<P>
+        impl<P> $crate::udp_net::SocketOptions for $name<P>
         where
-            P: crate::traits::Bytes,
+            P: $crate::traits::Bytes,
         {
             fn read_timeout(&self) -> ::std::io::Result<Option<std::time::Duration>> {
                 self.$inner.read_timeout()
@@ -77,12 +77,12 @@ macro_rules! buf_ops {
     };
 
     ($name:ident, $buf:ident, true) => {
-        impl<P> crate::udp_net::BufOps for $name<P>
+        impl<P> $crate::udp_net::BufOps for $name<P>
         where
-            P: crate::traits::Bytes,
+            P: $crate::traits::Bytes,
         {
             fn buf_len(&self) -> usize {
-                self.$buf.len() - crate::udp_net::TRUNCATION_BYTE
+                self.$buf.len() - $crate::udp_net::TRUNCATION_BYTE
             }
 
             /// Resize the buffer to the `new_len` of usable bytes.
@@ -92,18 +92,18 @@ macro_rules! buf_ops {
             /// Only use when necessary.
             fn resize_buf(&mut self, new_len: usize) {
                 assert!(new_len > 0);
-                crate::udp_net::resize_buffer(
+                $crate::udp_net::resize_buffer(
                     &mut self.$buf,
-                    new_len + crate::udp_net::TRUNCATION_BYTE,
+                    new_len + $crate::udp_net::TRUNCATION_BYTE,
                 );
             }
         }
     };
 
     ($name:ident, $buf:ident, false) => {
-        impl<P> crate::udp_net::BufOps for $name<P>
+        impl<P> $crate::udp_net::BufOps for $name<P>
         where
-            P: crate::traits::Bytes,
+            P: $crate::traits::Bytes,
         {
             fn buf_len(&self) -> usize {
                 self.$buf.len()
@@ -116,7 +116,7 @@ macro_rules! buf_ops {
             /// Only use when necessary.
             fn resize_buf(&mut self, new_len: usize) {
                 assert!(new_len > 0);
-                crate::udp_net::resize_buffer(&mut self.$buf, new_len);
+                $crate::udp_net::resize_buffer(&mut self.$buf, new_len);
             }
         }
     };
