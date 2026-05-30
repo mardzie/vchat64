@@ -11,7 +11,9 @@ pub const TIMEOUT: std::time::Duration = std::time::Duration::from_millis(10);
 
 fn main() -> Result<()> {
     // Add custom writer to limit log file size.
-    let log_file = std::io::LineWriter::new(std::fs::File::create("./log.log").unwrap());
+    let log_file = std::io::LineWriter::new(
+        std::fs::File::create("./log.log").expect("Failed to initialize the log file LineWriter!"),
+    );
     tracing_subscriber::fmt()
         .with_ansi(false)
         .with_writer(std::sync::Mutex::new(log_file))
