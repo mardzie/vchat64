@@ -68,3 +68,12 @@ pub type IoPeerAddrError = IoGetSocketNameError;
 io_error_enum!(IoGetSocketNameError, {
     InvalidInput,
 });
+
+io_error_enum!(IoGetSocketOption, {
+    InvalidInput,
+});
+
+io_error_enum!(IoSetSocketOption, {
+    InvalidInput,
+    OutOfMemory,
+});

@@ -1,11 +1,15 @@
 use std::{
     marker::PhantomData,
     net::{SocketAddr, ToSocketAddrs, UdpSocket},
+    time::Duration,
 };
 
 use super::error::SendError;
 use crate::{
-    error::{self as io_error, IoBindError, IoConnectError, IoLocalAddrError, IoPeerAddrError},
+    error::{
+        self as io_error, IoBindError, IoConnectError, IoGetSocketOption, IoLocalAddrError,
+        IoPeerAddrError, IoSetSocketOption,
+    },
     traits::Bytes,
     udp_net::{
         MAX_IPV4_DATAGRAM_SIZE, MAX_IPV6_DATAGRAM_SIZE,
@@ -123,6 +127,34 @@ where
 
             packet_phantom_data: PhantomData,
         })
+    }
+
+    pub fn read_timeout(&self) -> Result<Option<std::time::Duration>, IoGetSocketOption> {
+        Ok(self.socket.read_timeout()?)
+    }
+
+    pub fn set_read_timeout(&self, dur: Option<Duration>) -> Result<(), IoSetSocketOption> {
+        Ok(self.socket.set_read_timeout(dur)?)
+    }
+
+    pub fn write_timeout(&self) -> Result<Option<Duration>, IoGetSocketOption> {
+        Ok(self.socket.write_timeout()?)
+    }
+
+    pub fn set_write_timeout(&self, dur: Option<Duration>) -> Result<(), IoSetSocketOption> {
+        Ok(self.socket.set_write_timeout(dur)?)
+    }
+
+    pub fn ttl(&self) -> Result<u32, IoGetSocketOption> {
+        Ok(self.socket.ttl()?)
+    }
+
+    pub fn set_ttl(&self, ttl: u32) -> Result<(), IoSetSocketOption> {
+        Ok(self.socket.set_ttl(ttl)?)
+    }
+
+    pub fn set_nonblocking(&self, nonblocking: bool) -> Result<(), IoSetSocketOption> {
+        Ok(self.socket.set_nonblocking(nonblocking)?)
     }
 
     /// Uses the last byte as an indicator that the datagram was truncated.
