@@ -66,7 +66,7 @@ where
         self.buf.len() - TRUNCATION_BYTE
     }
 
-    /// Resize the buffer to the new length.
+    /// Resize the buffer to the `new_len` of usable bytes.
     /// This will either expand or shrink the buffer.
     ///
     /// This operation can be expensive.
