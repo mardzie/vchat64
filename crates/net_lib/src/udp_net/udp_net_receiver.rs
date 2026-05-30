@@ -3,7 +3,9 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use crate::{
     error as io_error,
     traits::Bytes,
-    udp_net::{BufOps, Receiver, TRUNCATION_BYTE, error, inner::Inner, resize_buffer},
+    udp_net::{
+        BufOps, Receiver, SocketOptions, TRUNCATION_BYTE, error, inner::Inner, resize_buffer,
+    },
 };
 
 #[derive(Debug)]
@@ -73,5 +75,44 @@ where
     fn resize_buf(&mut self, new_len: usize) {
         assert!(new_len > 0);
         resize_buffer(&mut self.buf, new_len + TRUNCATION_BYTE);
+    }
+}
+
+impl<P> SocketOptions for UdpNetReceiver<P>
+where
+    P: Bytes,
+{
+    fn read_timeout(&self) -> Result<Option<std::time::Duration>, io_error::IoGetSocketOption> {
+        self.inner.read_timeout()
+    }
+
+    fn set_read_timeout(
+        &self,
+        dur: Option<std::time::Duration>,
+    ) -> Result<(), io_error::IoSetSocketOption> {
+        self.inner.set_read_timeout(dur)
+    }
+
+    fn write_timeout(&self) -> Result<Option<std::time::Duration>, io_error::IoGetSocketOption> {
+        self.inner.write_timeout()
+    }
+
+    fn set_write_timeout(
+        &self,
+        dur: Option<std::time::Duration>,
+    ) -> Result<(), io_error::IoSetSocketOption> {
+        self.inner.set_write_timeout(dur)
+    }
+
+    fn ttl(&self) -> Result<u32, io_error::IoGetSocketOption> {
+        self.inner.ttl()
+    }
+
+    fn set_ttl(&self, ttl: u32) -> Result<(), io_error::IoSetSocketOption> {
+        self.inner.set_ttl(ttl)
+    }
+
+    fn set_nonblocking(&self, nonblocking: bool) -> Result<(), io_error::IoSetSocketOption> {
+        self.inner.set_nonblocking(nonblocking)
     }
 }

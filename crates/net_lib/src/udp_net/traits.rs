@@ -1,6 +1,13 @@
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::{
+    net::{SocketAddr, ToSocketAddrs},
+    time::Duration,
+};
 
-use crate::{traits::Bytes, udp_net::error};
+use crate::{
+    error::{IoGetSocketOption, IoSetSocketOption},
+    traits::Bytes,
+    udp_net::error,
+};
 
 #[allow(dead_code)]
 pub trait Sender<P: Bytes> {
@@ -18,6 +25,22 @@ pub trait Receiver<P: Bytes> {
     fn recv(&mut self) -> Result<P, error::RecvError>;
 
     fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError>;
+}
+
+pub trait SocketOptions {
+    fn read_timeout(&self) -> Result<Option<std::time::Duration>, IoGetSocketOption>;
+
+    fn set_read_timeout(&self, dur: Option<Duration>) -> Result<(), IoSetSocketOption>;
+
+    fn write_timeout(&self) -> Result<Option<Duration>, IoGetSocketOption>;
+
+    fn set_write_timeout(&self, dur: Option<Duration>) -> Result<(), IoSetSocketOption>;
+
+    fn ttl(&self) -> Result<u32, IoGetSocketOption>;
+
+    fn set_ttl(&self, ttl: u32) -> Result<(), IoSetSocketOption>;
+
+    fn set_nonblocking(&self, nonblocking: bool) -> Result<(), IoSetSocketOption>;
 }
 
 pub trait BufOps {
