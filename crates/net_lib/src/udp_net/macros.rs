@@ -4,7 +4,7 @@
 ///
 /// ```text
 /// socket_options!(name: ident, inner: ident);
-#[macro_export]
+/// ```
 macro_rules! socket_options {
     ($name:ident, $inner:ident) => {
         impl<P> $crate::udp_net::SocketOptions for $name<P>
@@ -67,7 +67,6 @@ macro_rules! socket_options {
 /// ```text
 /// buf_ops!(name: ident, buf: ident, false);
 /// ```
-#[macro_export]
 macro_rules! buf_ops {
     (
         // The name of the struct on which `BufOps` will get implemented.

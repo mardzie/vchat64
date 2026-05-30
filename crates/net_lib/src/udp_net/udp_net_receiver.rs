@@ -4,7 +4,6 @@ use std::{
 };
 
 use crate::{
-    buf_ops, socket_options,
     traits::Bytes,
     udp_net::{Receiver, error, inner::Inner},
 };
