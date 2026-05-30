@@ -12,7 +12,6 @@ where
     P: Bytes,
 {
     inner: Inner<P>,
-    #[allow(dead_code)]
     buf: Vec<u8>,
 }
 

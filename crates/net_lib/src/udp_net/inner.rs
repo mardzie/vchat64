@@ -8,8 +8,8 @@ use crate::{
     error::{self as io_error, IoBindError, IoConnectError, IoLocalAddrError, IoPeerAddrError},
     traits::Bytes,
     udp_net::{
-        MAX_DATAGRAM_SIZE,
-        error::{PeekError, RecvError},
+        MAX_IPV4_DATAGRAM_SIZE, MAX_IPV6_DATAGRAM_SIZE,
+        error::{BindError, PeekError, RecvError},
     },
 };
 
@@ -19,6 +19,7 @@ where
     P: Bytes,
 {
     socket: UdpSocket,
+    addr_type: AddrType,
 
     packet_phantom_data: PhantomData<P>,
 }
@@ -27,11 +28,15 @@ impl<P> Inner<P>
 where
     P: Bytes,
 {
-    pub fn bind(addr: impl ToSocketAddrs) -> Result<Self, IoBindError> {
-        let socket = UdpSocket::bind(addr)?;
+    pub fn bind(addr: impl ToSocketAddrs) -> Result<Self, BindError> {
+        let socket = UdpSocket::bind(addr).map_err(IoBindError::from)?;
+        let addr = socket.local_addr().map_err(IoBindError::from)?;
+        let addr_type = AddrType::from(addr);
 
         Ok(Self {
             socket,
+            addr_type,
+
             packet_phantom_data: PhantomData,
         })
     }
@@ -42,6 +47,7 @@ where
 
     pub fn send(&self, packet: &P, buf: &mut [u8]) -> Result<(), SendError> {
         let len = packet.to_bytes(buf)?;
+        // Discards the number of bytes written.
         let _ = self
             .socket
             .send(&buf[..len])
@@ -57,6 +63,7 @@ where
         buf: &mut [u8],
     ) -> Result<(), SendError> {
         let len = packet.to_bytes(buf)?;
+        // Discards the number of bytes written.
         let _ = self
             .socket
             .send_to(&buf[..len], addr)
@@ -67,7 +74,7 @@ where
 
     pub fn peek(&self, buf: &mut [u8]) -> Result<P, PeekError> {
         let len = self.socket.peek(buf).map_err(io_error::IoPeekError::from)?;
-        Self::check_for_truncation(buf, len)?;
+        Self::check_for_truncation(&self.addr_type, buf, len)?;
         Ok(P::from_bytes(&buf[..len])?)
     }
 
@@ -76,7 +83,7 @@ where
             .socket
             .peek_from(buf)
             .map_err(io_error::IoPeekError::from)?;
-        Self::check_for_truncation(buf, len)?;
+        Self::check_for_truncation(&self.addr_type, buf, len)?;
         let packet = P::from_bytes(&buf[..len])?;
 
         Ok((packet, addr))
@@ -84,7 +91,7 @@ where
 
     pub fn recv(&self, buf: &mut [u8]) -> Result<P, RecvError> {
         let len = self.socket.recv(buf).map_err(io_error::IoRecvError::from)?;
-        Self::check_for_truncation(buf, len)?;
+        Self::check_for_truncation(&self.addr_type, buf, len)?;
         Ok(P::from_bytes(&buf[..len])?)
     }
 
@@ -93,7 +100,7 @@ where
             .socket
             .recv_from(buf)
             .map_err(io_error::IoRecvError::from)?;
-        Self::check_for_truncation(buf, len)?;
+        Self::check_for_truncation(&self.addr_type, buf, len)?;
         let packet = P::from_bytes(&buf[..len])?;
 
         Ok((packet, addr))
@@ -112,20 +119,49 @@ where
 
         Ok(Self {
             socket,
+            addr_type: self.addr_type,
+
             packet_phantom_data: PhantomData,
         })
     }
 
     /// Uses the last byte as an indicator that the datagram was truncated.
     /// This does not hold true when the buffer is the `MAX_DATAGRAM_SIZE`
-    fn check_for_truncation(buf: &[u8], len: usize) -> Result<(), RecvError> {
-        // `MAX_DATAGRAM_SIZE` is the maximum size a datagram can have.
+    fn check_for_truncation(addr_type: &AddrType, buf: &[u8], len: usize) -> Result<(), RecvError> {
+        // `max_datagram_size` is the maximum size a datagram can have.
         // When the `buf` is that size the truncation check gets disabled and the last byte can be used as a data byte.
-        if buf.len() < MAX_DATAGRAM_SIZE && len == buf.len() {
+        if buf.len() < addr_type.max_datagram_size() && len == buf.len() {
             return Err(PeekError::DatagramTruncated);
         }
 
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum AddrType {
+    IPv4,
+    IPv6,
+}
+
+impl AddrType {
+    pub fn max_datagram_size(&self) -> usize {
+        match self {
+            Self::IPv4 => MAX_IPV4_DATAGRAM_SIZE,
+            Self::IPv6 => MAX_IPV6_DATAGRAM_SIZE,
+        }
+    }
+}
+
+impl From<SocketAddr> for AddrType {
+    fn from(addr: SocketAddr) -> Self {
+        if addr.is_ipv4() {
+            Self::IPv4
+        } else if addr.is_ipv6() {
+            Self::IPv6
+        } else {
+            panic!("Unknown socket address type: {}", addr);
+        }
     }
 }
 

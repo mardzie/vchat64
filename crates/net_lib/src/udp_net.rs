@@ -1,6 +1,10 @@
 use std::net::{SocketAddr, ToSocketAddrs};
 
-use crate::{error as io_error, traits::Bytes, udp_net::inner::Inner};
+use crate::{
+    error as io_error,
+    traits::Bytes,
+    udp_net::{error::BindError, inner::Inner},
+};
 
 mod inner;
 mod traits;
@@ -25,10 +29,11 @@ const IPV6_HEADER_SIZE: usize = 40;
 const IPV6_MIN_MTU_SIZE: usize = 1280;
 
 const UDP_HEADER_SIZE: usize = 8;
-const MAX_DATAGRAM_SIZE: usize = u16::MAX as usize - IPV4_HEADER_SIZE - UDP_HEADER_SIZE;
+const MAX_IPV4_DATAGRAM_SIZE: usize = u16::MAX as usize - IPV4_HEADER_SIZE - UDP_HEADER_SIZE;
+const MAX_IPV6_DATAGRAM_SIZE: usize = u16::MAX as usize - IPV6_HEADER_SIZE - UDP_HEADER_SIZE;
 
 /// The maximum buffer size. The size of the biggest possible datagram minus Headers.
-pub const LOOPBACK_BUF_SIZE: usize = MAX_DATAGRAM_SIZE;
+pub const LOOPBACK_BUF_SIZE: usize = MAX_IPV4_DATAGRAM_SIZE;
 pub const INTERNET_BUF_SIZE: usize = IPV6_MIN_MTU_SIZE - IPV6_HEADER_SIZE - UDP_HEADER_SIZE;
 pub const INTERNET_BUF_SIZE_LEGACY: usize =
     IPV4_MIN_MTU_SIZE - (IPV4_HEADER_SIZE + IPV4_OPTIONS_SIZE) - UDP_HEADER_SIZE;
@@ -53,7 +58,7 @@ impl<P> UdpNet<P>
 where
     P: Bytes,
 {
-    pub fn bind(addr: impl ToSocketAddrs, buf_size: usize) -> Result<Self, io_error::IoBindError> {
+    pub fn bind(addr: impl ToSocketAddrs, buf_size: usize) -> Result<Self, BindError> {
         assert!(
             buf_size > 0,
             "`buf_size` must be greater than `0`! It needs at least one data bit and one \"truncation detection byte\""
@@ -77,6 +82,10 @@ where
         self.inner.peer_addr()
     }
 
+    /// Splits the socket.
+    ///
+    /// Both returned `UdpNetSender` and `UdpNetReceiver` will share one os socket but have two different buffers.
+    /// One extra buffer will be allocated on this call.
     pub fn split(self) -> Result<(UdpNetSender<P>, UdpNetReceiver<P>), io_error::IoBindError> {
         Ok((
             UdpNetSender::new(

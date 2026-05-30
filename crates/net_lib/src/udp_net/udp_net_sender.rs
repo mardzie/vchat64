@@ -12,7 +12,6 @@ where
     P: Bytes,
 {
     inner: Inner<P>,
-    #[allow(dead_code)]
     buf: Vec<u8>,
 }
 
@@ -61,7 +60,7 @@ where
     fn buf_len(&self) -> usize {
         self.buf.len()
     }
-    
+
     /// Resize the buffer to the `new_len` of usable bytes.
     /// This will either expand or shrink the buffer.
     ///
