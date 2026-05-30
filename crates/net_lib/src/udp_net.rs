@@ -36,9 +36,9 @@ pub const INTERNET_BUF_SIZE_LEGACY: usize =
 /// A simple UDP networking abstraction.
 ///
 /// ```rust ignore
-/// use net_lib::{UdpNet, SAFE_BUF_SIZE};
+/// use net_lib::{UdpNet, INTERNET_BUF_SIZE};
 ///
-/// let udp_net = UdpNet::<SAFE_BUF_SIZE, Packet>::bind("127.0.0.1:0")?;
+/// let udp_net = UdpNet::<Packet>::bind("127.0.0.1:0", INTERNET_BUF_SIZE)?;
 /// ```
 #[derive(Debug)]
 pub struct UdpNet<P>
