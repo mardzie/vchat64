@@ -3,24 +3,24 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use crate::{
     error as io_error,
     traits::Bytes,
-    udp_net::{error, inner::Inner, transmission::Receiver},
+    udp_net::{Receiver, ResizeBuf, TRUNCATION_BYTE, error, inner::Inner},
 };
 
 #[derive(Debug)]
-pub struct UdpNetReceiver<const BUF_SIZE: usize, P>
+pub struct UdpNetReceiver<P>
 where
     P: Bytes,
 {
     inner: Inner<P>,
     #[allow(dead_code)]
-    buf: Box<[u8]>,
+    buf: Vec<u8>,
 }
 
-impl<const BUF_SIZE: usize, P> UdpNetReceiver<BUF_SIZE, P>
+impl<P> UdpNetReceiver<P>
 where
     P: Bytes,
 {
-    pub(super) fn new(inner: Inner<P>, buf: Box<[u8]>) -> Self {
+    pub(super) fn new(inner: Inner<P>, buf: Vec<u8>) -> Self {
         Self { inner, buf }
     }
 
@@ -37,7 +37,7 @@ where
     }
 }
 
-impl<const BUF_SIZE: usize, P> Receiver<P> for UdpNetReceiver<BUF_SIZE, P>
+impl<P> Receiver<P> for UdpNetReceiver<P>
 where
     P: Bytes,
 {
@@ -55,5 +55,15 @@ where
 
     fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError> {
         self.inner.recv_from(&mut self.buf)
+    }
+}
+
+impl<P> ResizeBuf for UdpNetReceiver<P>
+where
+    P: Bytes,
+{
+    fn resize_buf(&mut self, new_len: usize) {
+        self.buf.resize(new_len + TRUNCATION_BYTE, 0);
+        self.buf.shrink_to_fit();
     }
 }

@@ -3,24 +3,24 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use crate::{
     error::{self as io_error, IoConnectError},
     traits::Bytes,
-    udp_net::{error, inner::Inner, transmission::Sender},
+    udp_net::{ResizeBuf, Sender, error, inner::Inner},
 };
 
 #[derive(Debug)]
-pub struct UdpNetSender<const BUF_SIZE: usize, P>
+pub struct UdpNetSender<P>
 where
     P: Bytes,
 {
     inner: Inner<P>,
     #[allow(dead_code)]
-    buf: Box<[u8]>,
+    buf: Vec<u8>,
 }
 
-impl<const BUF_SIZE: usize, P> UdpNetSender<BUF_SIZE, P>
+impl<P> UdpNetSender<P>
 where
     P: Bytes,
 {
-    pub(super) fn new(inner: Inner<P>, buf: Box<[u8]>) -> Self {
+    pub(super) fn new(inner: Inner<P>, buf: Vec<u8>) -> Self {
         Self { inner, buf }
     }
 
@@ -37,7 +37,7 @@ where
     }
 }
 
-impl<const BUF_SIZE: usize, P> Sender<P> for UdpNetSender<BUF_SIZE, P>
+impl<P> Sender<P> for UdpNetSender<P>
 where
     P: Bytes,
 {
@@ -51,5 +51,15 @@ where
         self.inner.send_to(packet, addr, &mut self.buf)?;
 
         Ok(())
+    }
+}
+
+impl<P> ResizeBuf for UdpNetSender<P>
+where
+    P: Bytes,
+{
+    fn resize_buf(&mut self, new_len: usize) {
+        self.buf.resize(new_len, 0);
+        self.buf.shrink_to_fit();
     }
 }

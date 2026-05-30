@@ -19,3 +19,8 @@ pub trait Receiver<P: Bytes> {
 
     fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError>;
 }
+
+pub trait ResizeBuf {
+    /// Resizes the buffer to the set length.
+    fn resize_buf(&mut self, new_len: usize);
+}

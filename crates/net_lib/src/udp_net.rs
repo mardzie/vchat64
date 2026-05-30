@@ -3,13 +3,13 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use crate::{error as io_error, traits::Bytes, udp_net::inner::Inner};
 
 mod inner;
-mod transmission;
+mod traits;
 mod udp_net_receiver;
 mod udp_net_sender;
 
 pub mod error;
 
-pub use transmission::{Receiver, Sender};
+pub use traits::{Receiver, ResizeBuf, Sender};
 pub use udp_net_receiver::UdpNetReceiver;
 pub use udp_net_sender::UdpNetSender;
 
@@ -43,32 +43,28 @@ pub const INTERNET_BUF_SIZE_LEGACY: usize =
 ///
 /// let udp_net = UdpNet::<SAFE_BUF_SIZE, Packet>::bind("127.0.0.1:0")?;
 /// ```
-///
-/// If the `BUF_SIZE` is smaller than the maximum datagram size of 65535 (`u16::MAX`) bytes then the last bit is considered a "truncation detection byte".
-/// It will be used to detect if a datagram was truncated and is essentially "dead" and will never hold useful data.
-/// If you want 1024 bytes of usable buffer then set the `BUF_SIZE` to 1025 bytes.
 #[derive(Debug)]
-pub struct UdpNet<const BUF_SIZE: usize, P>
+pub struct UdpNet<P>
 where
     P: Bytes,
 {
     inner: Inner<P>,
-    buf: Box<[u8]>,
+    buf: Vec<u8>,
 }
 
-impl<const BUF_SIZE: usize, P> UdpNet<BUF_SIZE, P>
+impl<P> UdpNet<P>
 where
     P: Bytes,
 {
-    pub fn bind(addr: impl ToSocketAddrs) -> Result<Self, io_error::IoBindError> {
+    pub fn bind(addr: impl ToSocketAddrs, buf_size: usize) -> Result<Self, io_error::IoBindError> {
         assert!(
-            BUF_SIZE >= 2,
-            "`BUF_SIZE` must be greater than `1`! It needs at least one data bit and one \"truncation detection byte\""
+            buf_size >= 1,
+            "`buf_size` must be greater than `1`! It needs at least one data bit and one \"truncation detection byte\""
         );
 
         Ok(Self {
             inner: Inner::bind(addr)?,
-            buf: Box::new([0u8; BUF_SIZE]),
+            buf: vec![0u8; buf_size + TRUNCATION_BYTE],
         })
     }
 
@@ -84,37 +80,41 @@ where
         self.inner.peer_addr()
     }
 
-    pub fn split(
-        self,
-    ) -> Result<(UdpNetSender<BUF_SIZE, P>, UdpNetReceiver<BUF_SIZE, P>), io_error::IoBindError>
-    {
+    pub fn split(self) -> Result<(UdpNetSender<P>, UdpNetReceiver<P>), io_error::IoBindError> {
         Ok((
-            // TODO: Simplify this and the inner workings of `UdpNetSender` and `Inner` with `[0u8; BUF_SIZE - 1]` once `generic_const_exprs` stabilizes.
-            // Tracking: https://github.com/rust-lang/rust/issues/76560
-            UdpNetSender::new(self.inner.try_clone()?, Box::new([0u8; BUF_SIZE])),
+            UdpNetSender::new(
+                self.inner.try_clone()?,
+                vec![0u8; self.buf.len() - TRUNCATION_BYTE],
+            ),
             UdpNetReceiver::new(self.inner, self.buf),
         ))
     }
+
+    fn usable_buf(buf: &mut [u8]) -> &mut [u8] {
+        let len = buf.len() - TRUNCATION_BYTE;
+        &mut buf[..len]
+    }
 }
 
-impl<const BUF_SIZE: usize, P> Sender<P> for UdpNet<BUF_SIZE, P>
+impl<P> Sender<P> for UdpNet<P>
 where
     P: Bytes,
 {
     fn send(&mut self, packet: &P) -> Result<(), error::SendError> {
-        self.inner.send(packet, &mut self.buf)?;
+        self.inner.send(packet, Self::usable_buf(&mut self.buf))?;
 
         Ok(())
     }
 
     fn send_to(&mut self, packet: &P, addr: impl ToSocketAddrs) -> Result<(), error::SendError> {
-        self.inner.send_to(packet, addr, &mut self.buf)?;
+        self.inner
+            .send_to(packet, addr, Self::usable_buf(&mut self.buf))?;
 
         Ok(())
     }
 }
 
-impl<const BUF_SIZE: usize, P> Receiver<P> for UdpNet<BUF_SIZE, P>
+impl<P> Receiver<P> for UdpNet<P>
 where
     P: Bytes,
 {
@@ -132,5 +132,20 @@ where
 
     fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError> {
         self.inner.recv_from(&mut self.buf)
+    }
+}
+
+impl<P> ResizeBuf for UdpNet<P>
+where
+    P: Bytes,
+{
+    /// Resize the buffer to the new length.
+    /// This will either expand or shrink the buffer.
+    ///
+    /// This operation can be expensive.
+    /// Only use when necessary.
+    fn resize_buf(&mut self, new_len: usize) {
+        self.buf.resize(new_len + TRUNCATION_BYTE, 0);
+        self.buf.shrink_to_fit();
     }
 }
