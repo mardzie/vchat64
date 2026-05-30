@@ -37,10 +37,11 @@ const IP_HEADER_LEN: usize = 40;
 const STANDARD_MTU: usize = 1500;
 /// This is used to measure if a datagram exceeded the buffer size.
 const SAFETY_BYTE: usize = 1;
+const MAX_DATAGRAM_SIZE: usize = u16::MAX as usize;
 /// The maximum buffer size the size of the biggest possible datagram.
 ///
 /// More bytes would not make sense.
-pub const MAX_BUF_SIZE: usize = u16::MAX as usize;
+pub const MAX_BUF_SIZE: usize = MAX_DATAGRAM_SIZE;
 /// The network safe size that fits in the common MTU (Maximum Transmission Unit) limit.
 ///
 /// This constant respects IPv4 normal headers and IPv6 headers.
