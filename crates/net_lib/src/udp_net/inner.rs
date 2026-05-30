@@ -118,7 +118,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::traits::{FromBytes, ToBytes};
+    use crate::traits::{FromByteError, FromBytes, InsufficientBuffer, ToBytes};
 
     use super::*;
 
@@ -130,6 +130,10 @@ mod tests {
 
     impl ToBytes for Packet {
         fn to_bytes(&self, buf: &mut [u8]) -> Result<usize, crate::traits::InsufficientBuffer> {
+            if buf.len() < 1 {
+                return Err(InsufficientBuffer);
+            }
+
             buf[0] = self.clone() as u8;
             Ok(1)
         }
@@ -137,6 +141,14 @@ mod tests {
 
     impl FromBytes for Packet {
         fn from_bytes(buf: &[u8]) -> Result<Self, crate::traits::FromByteError> {
+            if buf.len() != 1 {
+                return Err(FromByteError::UnexpectedEOF {
+                    needed: 1,
+                    available: buf.len(),
+                    desc: "Packet need 1 byte for decoding".to_string(),
+                });
+            }
+
             match buf[0] {
                 0 => Ok(Self::Option1),
                 1 => Ok(Self::Option2),
