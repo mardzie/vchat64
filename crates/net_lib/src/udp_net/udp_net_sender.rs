@@ -61,7 +61,12 @@ where
     fn buf_len(&self) -> usize {
         self.buf.len()
     }
-
+    
+    /// Resize the buffer to the new length.
+    /// This will either expand or shrink the buffer.
+    ///
+    /// This operation can be expensive.
+    /// Only use when necessary.
     fn resize_buf(&mut self, new_len: usize) {
         assert!(new_len > 0);
         resize_buffer(&mut self.buf, new_len);

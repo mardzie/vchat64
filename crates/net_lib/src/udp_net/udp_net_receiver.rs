@@ -66,6 +66,11 @@ where
         self.buf.len() - TRUNCATION_BYTE
     }
 
+    /// Resize the buffer to the new length.
+    /// This will either expand or shrink the buffer.
+    ///
+    /// This operation can be expensive.
+    /// Only use when necessary.
     fn resize_buf(&mut self, new_len: usize) {
         assert!(new_len > 0);
         resize_buffer(&mut self.buf, new_len + TRUNCATION_BYTE);
