@@ -26,16 +26,7 @@ fn main() -> Result<()> {
 
     color_eyre::install()?;
 
-    // Panic hook
-    {
-        let original_hook = std::panic::take_hook();
-        std::panic::set_hook(Box::new(move |panic_info| {
-            crossterm::terminal::disable_raw_mode().unwrap();
-            crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen)
-                .unwrap();
-            original_hook(panic_info);
-        }));
-    }
+    set_custom_crossterm_panic_hook();
 
     let mut terminal = ratatui::init();
     let mut app = App::new();
@@ -50,4 +41,23 @@ fn main() -> Result<()> {
     };
 
     app_result
+}
+
+/// Adds a terminal restore to the normal panic hook.
+fn set_custom_crossterm_panic_hook() {
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic_info| {
+        if let Err(e) = crossterm::terminal::disable_raw_mode() {
+            eprintln!(
+                "Failed to disable raw mode for terminal! A terminal restart is required: {}",
+                e
+            );
+        }
+        if let Err(e) =
+            crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen)
+        {
+            eprintln!("Failed to leave alternate screen: {}", e);
+        }
+        original_hook(panic_info);
+    }));
 }
