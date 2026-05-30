@@ -28,13 +28,10 @@ const UDP_HEADER_SIZE: usize = 8;
 const MAX_DATAGRAM_SIZE: usize = u16::MAX as usize - IPV4_HEADER_SIZE - UDP_HEADER_SIZE;
 
 /// The maximum buffer size. The size of the biggest possible datagram minus Headers.
-///
-/// Does not include 1 truncation byte because its not needed.
 pub const LOOPBACK_BUF_SIZE: usize = MAX_DATAGRAM_SIZE;
-pub const INTERNET_BUF_SIZE: usize =
-    IPV6_MIN_MTU_SIZE - IPV6_HEADER_SIZE - UDP_HEADER_SIZE + TRUNCATION_BYTE;
+pub const INTERNET_BUF_SIZE: usize = IPV6_MIN_MTU_SIZE - IPV6_HEADER_SIZE - UDP_HEADER_SIZE;
 pub const INTERNET_BUF_SIZE_LEGACY: usize =
-    IPV4_MIN_MTU_SIZE - (IPV4_HEADER_SIZE + IPV4_OPTIONS_SIZE) - UDP_HEADER_SIZE + TRUNCATION_BYTE;
+    IPV4_MIN_MTU_SIZE - (IPV4_HEADER_SIZE + IPV4_OPTIONS_SIZE) - UDP_HEADER_SIZE;
 
 /// A simple UDP networking abstraction.
 ///
