@@ -14,4 +14,6 @@ pub enum RecvError {
     RecvError(#[from] crate::error::IoRecvError),
     #[error("{0}")]
     FromBytes(#[from] crate::traits::FromByteError),
+    #[error("Datagram Truncated Error: The datagram was truncated")]
+    DatagramTruncated,
 }

@@ -7,7 +7,10 @@ use super::error::SendError;
 use crate::{
     error::{self as io_error, IoBindError, IoConnectError, IoLocalAddrError, IoPeerAddrError},
     traits::Bytes,
-    udp_net::error::{PeekError, RecvError},
+    udp_net::{
+        MAX_BUF_SIZE,
+        error::{PeekError, RecvError},
+    },
 };
 
 #[derive(Debug)]
@@ -67,6 +70,7 @@ where
             .socket
             .peek(buf)
             .map_err(|e| io_error::IoPeekError::from(e))?;
+        Self::check_for_truncation(buf, len)?;
         Ok(P::from_bytes(&buf[..len])?)
     }
 
@@ -75,6 +79,7 @@ where
             .socket
             .peek_from(buf)
             .map_err(|e| io_error::IoPeekError::from(e))?;
+        Self::check_for_truncation(buf, len)?;
         let packet = P::from_bytes(&buf[..len])?;
 
         Ok((packet, addr))
@@ -85,6 +90,7 @@ where
             .socket
             .recv(buf)
             .map_err(|e| io_error::IoRecvError::from(e))?;
+        Self::check_for_truncation(buf, len)?;
         Ok(P::from_bytes(&buf[..len])?)
     }
 
@@ -93,6 +99,7 @@ where
             .socket
             .recv_from(buf)
             .map_err(|e| io_error::IoRecvError::from(e))?;
+        Self::check_for_truncation(buf, len)?;
         let packet = P::from_bytes(&buf[..len])?;
 
         Ok((packet, addr))
@@ -113,6 +120,16 @@ where
             socket,
             packet_phantom_data: PhantomData,
         })
+    }
+
+    /// Uses the last byte as an indicator that the datagram was truncated.
+    /// This does not hold true when the buffer is the max datagram size.
+    fn check_for_truncation(buf: &Box<[u8]>, len: usize) -> Result<(), RecvError> {
+        if buf.len() < MAX_BUF_SIZE && len >= buf.len() {
+            return Err(PeekError::DatagramTruncated);
+        }
+
+        Ok(())
     }
 }
 

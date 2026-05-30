@@ -35,12 +35,16 @@ const UDP_HEADER_LEN: usize = PORT_LEN + PORT_LEN + UDP_LENGTH_LEN + UDP_CHECKSU
 const IP_HEADER_LEN: usize = 40;
 /// The common MTU (Maximum Transmission Unit) size of networks is 1500 bytes.
 const STANDARD_MTU: usize = 1500;
+/// This is used to measure if a datagram exceeded the buffer size.
+const SAFETY_BYTE: usize = 1;
 /// The maximum buffer size the size of the biggest possible datagram.
-pub const MAX_SAFE_BUF_SIZE: usize = u16::MAX as usize;
+///
+/// More bytes would not make sense.
+pub const MAX_BUF_SIZE: usize = u16::MAX as usize;
 /// The network safe size that fits in the common MTU (Maximum Transmission Unit) limit.
 ///
 /// This constant respects IPv4 normal headers and IPv6 headers.
-pub const SAFE_BUF_SIZE: usize = STANDARD_MTU - UDP_HEADER_LEN - IP_HEADER_LEN;
+pub const SAFE_BUF_SIZE: usize = STANDARD_MTU - UDP_HEADER_LEN - IP_HEADER_LEN + SAFETY_BYTE;
 
 /// A simple UDP networking abstraction.
 ///
@@ -49,6 +53,10 @@ pub const SAFE_BUF_SIZE: usize = STANDARD_MTU - UDP_HEADER_LEN - IP_HEADER_LEN;
 ///
 /// let udp_net = UdpNet::<SAFE_BUF_SIZE, Packet>::bind("127.0.0.1:0")?;
 /// ```
+///
+/// If the `BUF_SIZE` is smaller than the maximum datagram size of 65535 (`u16::MAX`) bytes then the last bit is considered a "truncation detection byte".
+/// It will be used to detect if a datagram was trucated and is essentially "dead" and will never hold useful data.
+/// If you want 1024 bytes of usable buffer then set the `BUF_SIZE` to 1025 bytes.
 #[derive(Debug)]
 pub struct UdpNet<const BUF_SIZE: usize, P>
 where
