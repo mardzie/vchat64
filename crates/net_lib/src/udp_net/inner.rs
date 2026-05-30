@@ -181,7 +181,7 @@ mod tests {
 
     impl ToBytes for BigPacket {
         fn to_bytes(&self, buf: &mut [u8]) -> Result<usize, InsufficientBuffer> {
-            if buf.len() <= 5 {
+            if buf.len() < 5 {
                 return Err(InsufficientBuffer);
             }
 
@@ -206,6 +206,13 @@ mod tests {
 
     impl FromBytes for BigPacket {
         fn from_bytes(buf: &[u8]) -> Result<Self, FromByteError> {
+            if buf.len() != 5 {
+                return Err(FromByteError::InvalidData {
+                    offset: 0,
+                    desc: "Buffer has the wrong length".to_string(),
+                });
+            }
+
             let mut v_bytes = [0u8; 4];
             v_bytes.copy_from_slice(&buf[1..5]);
             let v = u32::from_be_bytes(v_bytes);
