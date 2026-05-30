@@ -221,7 +221,7 @@ impl From<SocketAddr> for AddrType {
         } else if addr.is_ipv6() {
             Self::IPv6
         } else {
-            panic!("Unknown socket address type: {}", addr);
+            unreachable!("Unknown socket address type: {}", addr);
         }
     }
 }
