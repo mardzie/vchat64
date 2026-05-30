@@ -55,8 +55,8 @@ where
 {
     pub fn bind(addr: impl ToSocketAddrs, buf_size: usize) -> Result<Self, io_error::IoBindError> {
         assert!(
-            buf_size >= 1,
-            "`buf_size` must be greater than `1`! It needs at least one data bit and one \"truncation detection byte\""
+            buf_size > 0,
+            "`buf_size` must be greater than `0`! It needs at least one data bit and one \"truncation detection byte\""
         );
 
         Ok(Self {
