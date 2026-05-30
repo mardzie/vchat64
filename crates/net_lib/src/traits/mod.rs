@@ -1,5 +1,5 @@
 pub trait ToBytes {
-    /// Encode `&self` into `&mut Vec<u8>`.
+    /// Encode `&self` into `&mut [u8]`.
     fn to_bytes(&self, buf: &mut [u8]) -> Result<usize, InsufficientBuffer>;
 }
 
