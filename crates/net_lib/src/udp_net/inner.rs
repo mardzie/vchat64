@@ -289,7 +289,7 @@ mod tests {
         let first_packet = BigPacket::Option1(100);
         inner1.send(&first_packet, &mut big_buf).unwrap(); // Sufficient large buffer to fit `BigPacket`.
 
-        let mut slightly_tiny_buf = [0u8; 5]; // Slightly too tiny buffer to fit a `BigPacket`.
+        let mut slightly_tiny_buf = [0u8; 4]; // Slightly too tiny buffer to fit a `BigPacket`.
         let mut fitting_buf = [0u8; 6]; // Exactly fitting buf with +1 space to detect truncation.
         assert_matches!(
             inner2.peek(&mut slightly_tiny_buf),
