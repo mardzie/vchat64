@@ -3,10 +3,15 @@ use std::{
     net::{SocketAddr, ToSocketAddrs},
 };
 
-use crate::{traits::Bytes, udp_net::inner::Inner};
+use crate::{
+    traits::Bytes,
+    udp_net::{
+        inner::Inner,
+        macros::{buf_ops, socket_options},
+    },
+};
 
 mod inner;
-#[macro_use]
 mod macros;
 mod traits;
 mod udp_net_receiver;

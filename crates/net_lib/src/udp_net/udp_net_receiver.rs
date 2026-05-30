@@ -5,7 +5,11 @@ use std::{
 
 use crate::{
     traits::Bytes,
-    udp_net::{Receiver, error, inner::Inner},
+    udp_net::{
+        Receiver, error,
+        inner::Inner,
+        macros::{buf_ops, socket_options},
+    },
 };
 
 #[derive(Debug)]

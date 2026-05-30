@@ -47,6 +47,7 @@ macro_rules! socket_options {
         }
     };
 }
+pub(crate) use socket_options;
 
 /// Generates an implementation of `BufOps`.
 ///
@@ -120,3 +121,4 @@ macro_rules! buf_ops {
         }
     };
 }
+pub(crate) use buf_ops;
