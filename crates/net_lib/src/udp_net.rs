@@ -65,6 +65,13 @@ where
 {
     inner: Inner<P>,
     buf: Box<[u8]>,
+    /// The size of the usable send buffer.
+    ///
+    /// The last bit is used in the receiver to check for truncation.
+    /// Here its useless until `generic_const_exprs` stabilized.
+    /// Then the buffer can be reduced by 1 and this logic to ignore the extra byte removed.
+    /// Tracking: https://github.com/rust-lang/rust/issues/76560
+    send_buf_size: usize,
 }
 
 impl<const BUF_SIZE: usize, P> UdpNet<BUF_SIZE, P>
@@ -80,6 +87,7 @@ where
         Ok(Self {
             inner: Inner::bind(addr)?,
             buf: Box::new([0u8; BUF_SIZE]),
+            send_buf_size: BUF_SIZE - 1,
         })
     }
 
@@ -100,6 +108,8 @@ where
     ) -> Result<(UdpNetSender<BUF_SIZE, P>, UdpNetReceiver<BUF_SIZE, P>), io_error::IoBindError>
     {
         Ok((
+            // TODO: Simplify this and the inner workings of `UdpNetSender` with `[0u8; BUF_SIZE - 1]` once `generic_const_exprs` stabilizes.
+            // Tracking: https://github.com/rust-lang/rust/issues/76560
             UdpNetSender::new(self.inner.try_clone()?, Box::new([0u8; BUF_SIZE])),
             UdpNetReceiver::new(self.inner, self.buf),
         ))
@@ -111,13 +121,15 @@ where
     P: Bytes,
 {
     fn send(&mut self, packet: &P) -> Result<(), error::SendError> {
-        self.inner.send(packet, &mut self.buf)?;
+        self.inner
+            .send(packet, &mut self.buf[..self.send_buf_size])?;
 
         Ok(())
     }
 
     fn send_to(&mut self, packet: &P, addr: impl ToSocketAddrs) -> Result<(), error::SendError> {
-        self.inner.send_to(packet, addr, &mut self.buf)?;
+        self.inner
+            .send_to(packet, addr, &mut self.buf[..self.send_buf_size])?;
 
         Ok(())
     }
