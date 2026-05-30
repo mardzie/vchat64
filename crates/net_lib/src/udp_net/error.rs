@@ -2,7 +2,7 @@
 pub enum BindError {
     #[error("{0}")]
     Io(#[from] crate::error::IoBindError),
-    #[error("")]
+    #[error("{0}")]
     IoLocalAddress(#[from] crate::error::IoLocalAddrError),
 }
 
