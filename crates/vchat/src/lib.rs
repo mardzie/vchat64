@@ -36,7 +36,7 @@ pub struct VChat {
 }
 
 impl VChat {
-    pub fn new<A>(addr: A) -> Result<Self, ()>
+    pub fn new<A>(addr: A) -> Self
     where
         A: ToSocketAddrs,
     {
@@ -98,7 +98,7 @@ impl VChat {
 
         audio.play();
 
-        Ok(Self {
+        Self {
             audio,
             voice_net,
             addresses,
@@ -106,7 +106,7 @@ impl VChat {
             exit_notify,
             input_udp_bridge_handle,
             output_udp_bridge_handle,
-        })
+        }
     }
 
     fn input_udp_bridge(
