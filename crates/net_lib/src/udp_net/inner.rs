@@ -119,7 +119,7 @@ where
     /// Uses the last byte as an indicator that the datagram was truncated.
     /// This does not hold true when the buffer is the max datagram size.
     fn check_for_truncation(buf: &[u8], len: usize) -> Result<(), RecvError> {
-        if buf.len() < MAX_DATAGRAM_SIZE && len >= buf.len() {
+        if buf.len() < MAX_DATAGRAM_SIZE && len == buf.len() {
             return Err(PeekError::DatagramTruncated);
         }
 
