@@ -3,9 +3,10 @@ use std::{
     net::{SocketAddr, ToSocketAddrs},
 };
 
-use crate::{traits::Bytes, udp_net::inner::Inner};
+use crate::{buf_ops, socket_options, traits::Bytes, udp_net::inner::Inner};
 
 mod inner;
+mod macros;
 mod traits;
 mod udp_net_receiver;
 mod udp_net_sender;
@@ -148,57 +149,9 @@ where
     }
 }
 
-impl<P> BufOps for UdpNet<P>
-where
-    P: Bytes,
-{
-    fn buf_len(&self) -> usize {
-        self.buf.len() - TRUNCATION_BYTE
-    }
+buf_ops!(UdpNet, buf);
 
-    /// Resize the buffer to the `new_len` of usable bytes.
-    /// This will either expand or shrink the buffer.
-    ///
-    /// This operation can be expensive.
-    /// Only use when necessary.
-    fn resize_buf(&mut self, new_len: usize) {
-        assert!(new_len > 0);
-        resize_buffer(&mut self.buf, new_len + TRUNCATION_BYTE);
-    }
-}
-
-impl<P> SocketOptions for UdpNet<P>
-where
-    P: Bytes,
-{
-    fn read_timeout(&self) -> io::Result<Option<std::time::Duration>> {
-        self.inner.read_timeout()
-    }
-
-    fn set_read_timeout(&self, dur: Option<std::time::Duration>) -> io::Result<()> {
-        self.inner.set_read_timeout(dur)
-    }
-
-    fn write_timeout(&self) -> io::Result<Option<std::time::Duration>> {
-        self.inner.write_timeout()
-    }
-
-    fn set_write_timeout(&self, dur: Option<std::time::Duration>) -> io::Result<()> {
-        self.inner.set_write_timeout(dur)
-    }
-
-    fn ttl(&self) -> io::Result<u32> {
-        self.inner.ttl()
-    }
-
-    fn set_ttl(&self, ttl: u32) -> io::Result<()> {
-        self.inner.set_ttl(ttl)
-    }
-
-    fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
-        self.inner.set_nonblocking(nonblocking)
-    }
-}
+socket_options!(UdpNet, inner);
 
 fn resize_buffer(buf: &mut Vec<u8>, new_len: usize) {
     buf.resize(new_len, 0);
