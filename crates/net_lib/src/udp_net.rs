@@ -2,12 +2,12 @@ use std::net::{SocketAddr, ToSocketAddrs};
 
 use crate::{error as io_error, traits::Bytes, udp_net::inner::Inner};
 
+mod inner;
 mod transmission;
 mod udp_net_receiver;
 mod udp_net_sender;
 
 pub mod error;
-pub(self) mod inner;
 
 pub use transmission::{Receiver, Sender};
 pub use udp_net_receiver::UdpNetReceiver;
