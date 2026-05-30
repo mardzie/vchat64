@@ -40,12 +40,12 @@ where
         Ok(self.socket.connect(addr)?)
     }
 
-    pub fn send(&self, packet: &P, buf: &mut Box<[u8]>) -> Result<(), SendError> {
+    pub fn send(&self, packet: &P, buf: &mut [u8]) -> Result<(), SendError> {
         let len = packet.to_bytes(buf)?;
         let _ = self
             .socket
             .send(&buf[..len])
-            .map_err(|e| io_error::IoSendError::from(e))?;
+            .map_err(io_error::IoSendError::from)?;
 
         Ok(())
     }
@@ -54,51 +54,45 @@ where
         &self,
         packet: &P,
         addr: impl ToSocketAddrs,
-        buf: &mut Box<[u8]>,
+        buf: &mut [u8],
     ) -> Result<(), SendError> {
         let len = packet.to_bytes(buf)?;
         let _ = self
             .socket
             .send_to(&buf[..len], addr)
-            .map_err(|e| io_error::IoSendError::from(e))?;
+            .map_err(io_error::IoSendError::from)?;
 
         Ok(())
     }
 
-    pub fn peek(&self, buf: &mut Box<[u8]>) -> Result<P, PeekError> {
-        let len = self
-            .socket
-            .peek(buf)
-            .map_err(|e| io_error::IoPeekError::from(e))?;
+    pub fn peek(&self, buf: &mut [u8]) -> Result<P, PeekError> {
+        let len = self.socket.peek(buf).map_err(io_error::IoPeekError::from)?;
         Self::check_for_truncation(buf, len)?;
         Ok(P::from_bytes(&buf[..len])?)
     }
 
-    pub fn peek_from(&self, buf: &mut Box<[u8]>) -> Result<(P, SocketAddr), PeekError> {
+    pub fn peek_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), PeekError> {
         let (len, addr) = self
             .socket
             .peek_from(buf)
-            .map_err(|e| io_error::IoPeekError::from(e))?;
+            .map_err(io_error::IoPeekError::from)?;
         Self::check_for_truncation(buf, len)?;
         let packet = P::from_bytes(&buf[..len])?;
 
         Ok((packet, addr))
     }
 
-    pub fn recv(&self, buf: &mut Box<[u8]>) -> Result<P, RecvError> {
-        let len = self
-            .socket
-            .recv(buf)
-            .map_err(|e| io_error::IoRecvError::from(e))?;
+    pub fn recv(&self, buf: &mut [u8]) -> Result<P, RecvError> {
+        let len = self.socket.recv(buf).map_err(io_error::IoRecvError::from)?;
         Self::check_for_truncation(buf, len)?;
         Ok(P::from_bytes(&buf[..len])?)
     }
 
-    pub fn recv_from(&self, buf: &mut Box<[u8]>) -> Result<(P, SocketAddr), RecvError> {
+    pub fn recv_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), RecvError> {
         let (len, addr) = self
             .socket
             .recv_from(buf)
-            .map_err(|e| io_error::IoRecvError::from(e))?;
+            .map_err(io_error::IoRecvError::from)?;
         Self::check_for_truncation(buf, len)?;
         let packet = P::from_bytes(&buf[..len])?;
 
@@ -124,7 +118,7 @@ where
 
     /// Uses the last byte as an indicator that the datagram was truncated.
     /// This does not hold true when the buffer is the max datagram size.
-    fn check_for_truncation(buf: &Box<[u8]>, len: usize) -> Result<(), RecvError> {
+    fn check_for_truncation(buf: &[u8], len: usize) -> Result<(), RecvError> {
         if buf.len() < MAX_BUF_SIZE && len >= buf.len() {
             return Err(PeekError::DatagramTruncated);
         }

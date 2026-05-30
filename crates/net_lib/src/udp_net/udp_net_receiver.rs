@@ -42,18 +42,18 @@ where
     P: Bytes,
 {
     fn peek(&mut self) -> Result<P, error::PeekError> {
-        Ok(self.inner.peek(&mut self.buf)?)
+        self.inner.peek(&mut self.buf)
     }
 
     fn peek_from(&mut self) -> Result<(P, SocketAddr), error::PeekError> {
-        Ok(self.inner.peek_from(&mut self.buf)?)
+        self.inner.peek_from(&mut self.buf)
     }
 
     fn recv(&mut self) -> Result<P, error::RecvError> {
-        Ok(self.inner.recv(&mut self.buf)?)
+        self.inner.recv(&mut self.buf)
     }
 
     fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError> {
-        Ok(self.inner.recv_from(&mut self.buf)?)
+        self.inner.recv_from(&mut self.buf)
     }
 }
