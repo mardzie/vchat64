@@ -1,4 +1,5 @@
 use std::{
+    io,
     marker::PhantomData,
     net::{SocketAddr, ToSocketAddrs, UdpSocket},
     time::Duration,
@@ -6,14 +7,10 @@ use std::{
 
 use super::error::SendError;
 use crate::{
-    error::{
-        self as io_error, IoBindError, IoConnectError, IoGetSocketOption, IoLocalAddrError,
-        IoPeerAddrError, IoSendError, IoSetSocketOption,
-    },
     traits::Bytes,
     udp_net::{
         MAX_IPV4_DATAGRAM_SIZE, MAX_IPV6_DATAGRAM_SIZE, SocketOptions,
-        error::{BindError, PeekError, RecvError},
+        error::{PeekError, RecvError},
     },
 };
 
@@ -32,9 +29,9 @@ impl<P> Inner<P>
 where
     P: Bytes,
 {
-    pub fn bind(addr: impl ToSocketAddrs) -> Result<Self, BindError> {
-        let socket = UdpSocket::bind(addr).map_err(IoBindError::from)?;
-        let addr = socket.local_addr().map_err(IoBindError::from)?;
+    pub fn bind(addr: impl ToSocketAddrs) -> io::Result<Self> {
+        let socket = UdpSocket::bind(addr)?;
+        let addr = socket.local_addr()?;
         let addr_type = AddrType::from(addr);
 
         Ok(Self {
@@ -45,8 +42,8 @@ where
         })
     }
 
-    pub fn connect(&self, addr: impl ToSocketAddrs) -> Result<(), IoConnectError> {
-        Ok(self.socket.connect(addr)?)
+    pub fn connect(&self, addr: impl ToSocketAddrs) -> io::Result<()> {
+        self.socket.connect(addr)
     }
 
     /// Send bytes directly to the connected address.
@@ -54,7 +51,7 @@ where
     /// The `buf`s content must be able to be turned back into `P` with the `FromBytes` trait or the receiver will get an error.
     ///
     /// This skips the to_bytes call and is useful if the same packet gets sent multiple times to the connected address.
-    pub fn send_bytes(&self, buf: &[u8]) -> Result<(), IoSendError> {
+    pub fn send_bytes(&self, buf: &[u8]) -> io::Result<()> {
         self.socket.send(buf)?;
 
         Ok(())
@@ -73,7 +70,7 @@ where
     /// The `buf`s content must be able to be turned back into `P` with the `FromBytes` trait or the receiver will get an error.
     ///
     /// This skips the to_bytes call and is useful if the same packet gets sent multiple times to one or more addresses.
-    pub fn send_bytes_to(&self, buf: &[u8], addr: impl ToSocketAddrs) -> Result<(), IoSendError> {
+    pub fn send_bytes_to(&self, buf: &[u8], addr: impl ToSocketAddrs) -> io::Result<()> {
         self.socket.send_to(buf, addr)?;
 
         Ok(())
@@ -96,7 +93,7 @@ where
     ///
     /// This will not remove the `P` from the sockets received datagrams.
     pub fn peek(&self, buf: &mut [u8]) -> Result<P, PeekError> {
-        let len = self.socket.peek(buf).map_err(io_error::IoPeekError::from)?;
+        let len = self.socket.peek(buf)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
         Ok(P::from_bytes(&buf[..len])?)
     }
@@ -105,10 +102,7 @@ where
     ///
     /// This will not remove the `P` from the sockets received datagrams.
     pub fn peek_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), PeekError> {
-        let (len, addr) = self
-            .socket
-            .peek_from(buf)
-            .map_err(io_error::IoPeekError::from)?;
+        let (len, addr) = self.socket.peek_from(buf)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
         let packet = P::from_bytes(&buf[..len])?;
 
@@ -117,32 +111,29 @@ where
 
     /// Receive a `P` from the connected address.
     pub fn recv(&self, buf: &mut [u8]) -> Result<P, RecvError> {
-        let len = self.socket.recv(buf).map_err(io_error::IoRecvError::from)?;
+        let len = self.socket.recv(buf)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
         Ok(P::from_bytes(&buf[..len])?)
     }
 
     /// Receive a `P` from an address.
     pub fn recv_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), RecvError> {
-        let (len, addr) = self
-            .socket
-            .recv_from(buf)
-            .map_err(io_error::IoRecvError::from)?;
+        let (len, addr) = self.socket.recv_from(buf)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
         let packet = P::from_bytes(&buf[..len])?;
 
         Ok((packet, addr))
     }
 
-    pub fn local_addr(&self) -> Result<SocketAddr, IoLocalAddrError> {
-        Ok(self.socket.local_addr()?)
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.socket.local_addr()
     }
 
-    pub fn peer_addr(&self) -> Result<SocketAddr, IoPeerAddrError> {
-        Ok(self.socket.peer_addr()?)
+    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
+        self.socket.peer_addr()
     }
 
-    pub fn try_clone(&self) -> Result<Self, IoBindError> {
+    pub fn try_clone(&self) -> io::Result<Self> {
         let socket = self.socket.try_clone()?;
 
         Ok(Self {
@@ -170,32 +161,32 @@ impl<P> SocketOptions for Inner<P>
 where
     P: Bytes,
 {
-    fn read_timeout(&self) -> Result<Option<std::time::Duration>, IoGetSocketOption> {
-        Ok(self.socket.read_timeout()?)
+    fn read_timeout(&self) -> io::Result<Option<std::time::Duration>> {
+        self.socket.read_timeout()
     }
 
-    fn set_read_timeout(&self, dur: Option<Duration>) -> Result<(), IoSetSocketOption> {
-        Ok(self.socket.set_read_timeout(dur)?)
+    fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.socket.set_read_timeout(dur)
     }
 
-    fn write_timeout(&self) -> Result<Option<Duration>, IoGetSocketOption> {
-        Ok(self.socket.write_timeout()?)
+    fn write_timeout(&self) -> io::Result<Option<Duration>> {
+        self.socket.write_timeout()
     }
 
-    fn set_write_timeout(&self, dur: Option<Duration>) -> Result<(), IoSetSocketOption> {
-        Ok(self.socket.set_write_timeout(dur)?)
+    fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
+        self.socket.set_write_timeout(dur)
     }
 
-    fn ttl(&self) -> Result<u32, IoGetSocketOption> {
-        Ok(self.socket.ttl()?)
+    fn ttl(&self) -> io::Result<u32> {
+        self.socket.ttl()
     }
 
-    fn set_ttl(&self, ttl: u32) -> Result<(), IoSetSocketOption> {
-        Ok(self.socket.set_ttl(ttl)?)
+    fn set_ttl(&self, ttl: u32) -> io::Result<()> {
+        self.socket.set_ttl(ttl)
     }
 
-    fn set_nonblocking(&self, nonblocking: bool) -> Result<(), IoSetSocketOption> {
-        Ok(self.socket.set_nonblocking(nonblocking)?)
+    fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
+        self.socket.set_nonblocking(nonblocking)
     }
 }
 

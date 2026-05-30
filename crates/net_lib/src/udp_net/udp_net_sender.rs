@@ -1,7 +1,9 @@
-use std::net::{SocketAddr, ToSocketAddrs};
+use std::{
+    io,
+    net::{SocketAddr, ToSocketAddrs},
+};
 
 use crate::{
-    error::{self as io_error, IoConnectError},
     traits::Bytes,
     udp_net::{BufOps, Sender, SocketOptions, error, inner::Inner, resize_buffer},
 };
@@ -23,15 +25,15 @@ where
         Self { inner, buf }
     }
 
-    pub fn connect(&self, addr: impl ToSocketAddrs) -> Result<(), IoConnectError> {
+    pub fn connect(&self, addr: impl ToSocketAddrs) -> io::Result<()> {
         self.inner.connect(addr)
     }
 
-    pub fn local_addr(&self) -> Result<SocketAddr, io_error::IoLocalAddrError> {
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.inner.local_addr()
     }
 
-    pub fn peer_addr(&self) -> Result<SocketAddr, io_error::IoPeerAddrError> {
+    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.inner.peer_addr()
     }
 }
@@ -40,7 +42,7 @@ impl<P> Sender<P> for UdpNetSender<P>
 where
     P: Bytes,
 {
-    fn send_bytes(&self, buf: &[u8]) -> Result<(), io_error::IoSendError> {
+    fn send_bytes(&self, buf: &[u8]) -> io::Result<()> {
         self.inner.send_bytes(buf)
     }
 
@@ -50,11 +52,7 @@ where
         Ok(())
     }
 
-    fn send_bytes_to(
-        &self,
-        buf: &[u8],
-        addr: impl ToSocketAddrs,
-    ) -> Result<(), io_error::IoSendError> {
+    fn send_bytes_to(&self, buf: &[u8], addr: impl ToSocketAddrs) -> io::Result<()> {
         self.inner.send_bytes_to(buf, addr)
     }
 
@@ -88,37 +86,31 @@ impl<P> SocketOptions for UdpNetSender<P>
 where
     P: Bytes,
 {
-    fn read_timeout(&self) -> Result<Option<std::time::Duration>, io_error::IoGetSocketOption> {
+    fn read_timeout(&self) -> io::Result<Option<std::time::Duration>> {
         self.inner.read_timeout()
     }
 
-    fn set_read_timeout(
-        &self,
-        dur: Option<std::time::Duration>,
-    ) -> Result<(), io_error::IoSetSocketOption> {
+    fn set_read_timeout(&self, dur: Option<std::time::Duration>) -> io::Result<()> {
         self.inner.set_read_timeout(dur)
     }
 
-    fn write_timeout(&self) -> Result<Option<std::time::Duration>, io_error::IoGetSocketOption> {
+    fn write_timeout(&self) -> io::Result<Option<std::time::Duration>> {
         self.inner.write_timeout()
     }
 
-    fn set_write_timeout(
-        &self,
-        dur: Option<std::time::Duration>,
-    ) -> Result<(), io_error::IoSetSocketOption> {
+    fn set_write_timeout(&self, dur: Option<std::time::Duration>) -> io::Result<()> {
         self.inner.set_write_timeout(dur)
     }
 
-    fn ttl(&self) -> Result<u32, io_error::IoGetSocketOption> {
+    fn ttl(&self) -> io::Result<u32> {
         self.inner.ttl()
     }
 
-    fn set_ttl(&self, ttl: u32) -> Result<(), io_error::IoSetSocketOption> {
+    fn set_ttl(&self, ttl: u32) -> io::Result<()> {
         self.inner.set_ttl(ttl)
     }
 
-    fn set_nonblocking(&self, nonblocking: bool) -> Result<(), io_error::IoSetSocketOption> {
+    fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
         self.inner.set_nonblocking(nonblocking)
     }
 }
