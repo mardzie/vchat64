@@ -3,12 +3,9 @@ use std::{
     net::{SocketAddr, ToSocketAddrs},
 };
 
-use crate::{
-    traits::Bytes,
-    udp_net::{
-        inner::Inner,
-        macros::{buf_ops, socket_options},
-    },
+use crate::udp_net::{
+    inner::Inner,
+    macros::{buf_ops, socket_options},
 };
 
 mod inner;
@@ -19,6 +16,7 @@ mod udp_net_sender;
 
 pub mod error;
 
+use serde::{Serialize, de::DeserializeOwned};
 pub use traits::{BufOps, Receiver, Sender, SocketOptions};
 pub use udp_net_receiver::UdpNetReceiver;
 pub use udp_net_sender::UdpNetSender;
@@ -54,7 +52,7 @@ pub const INTERNET_BUF_SIZE_LEGACY: usize =
 #[derive(Debug)]
 pub struct UdpNet<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     inner: Inner<P>,
     buf: Vec<u8>,
@@ -62,7 +60,7 @@ where
 
 impl<P> UdpNet<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     pub fn bind(addr: impl ToSocketAddrs, buf_size: usize) -> io::Result<Self> {
         assert!(
@@ -110,7 +108,7 @@ where
 
 impl<P> Sender<P> for UdpNet<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     fn send_bytes(&self, buf: &[u8]) -> io::Result<()> {
         self.inner.send_bytes(buf)
@@ -136,7 +134,7 @@ where
 
 impl<P> Receiver<P> for UdpNet<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     fn peek(&mut self) -> Result<P, error::PeekError> {
         self.inner.peek(&mut self.buf)

@@ -3,19 +3,18 @@ use std::{
     net::{SocketAddr, ToSocketAddrs},
 };
 
-use crate::{
-    traits::Bytes,
-    udp_net::{
-        Sender, error,
-        inner::Inner,
-        macros::{buf_ops, socket_options},
-    },
+use serde::{Serialize, de::DeserializeOwned};
+
+use crate::udp_net::{
+    Sender, error,
+    inner::Inner,
+    macros::{buf_ops, socket_options},
 };
 
 #[derive(Debug)]
 pub struct UdpNetSender<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     inner: Inner<P>,
     buf: Vec<u8>,
@@ -23,7 +22,7 @@ where
 
 impl<P> UdpNetSender<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     pub(super) fn new(inner: Inner<P>, buf: Vec<u8>) -> Self {
         Self { inner, buf }
@@ -44,7 +43,7 @@ where
 
 impl<P> Sender<P> for UdpNetSender<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     fn send_bytes(&self, buf: &[u8]) -> io::Result<()> {
         self.inner.send_bytes(buf)

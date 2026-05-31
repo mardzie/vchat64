@@ -3,19 +3,18 @@ use std::{
     net::{SocketAddr, ToSocketAddrs},
 };
 
-use crate::{
-    traits::Bytes,
-    udp_net::{
-        Receiver, error,
-        inner::Inner,
-        macros::{buf_ops, socket_options},
-    },
+use serde::{Serialize, de::DeserializeOwned};
+
+use crate::udp_net::{
+    Receiver, error,
+    inner::Inner,
+    macros::{buf_ops, socket_options},
 };
 
 #[derive(Debug)]
 pub struct UdpNetReceiver<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     inner: Inner<P>,
     buf: Vec<u8>,
@@ -23,7 +22,7 @@ where
 
 impl<P> UdpNetReceiver<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     pub(super) fn new(inner: Inner<P>, buf: Vec<u8>) -> Self {
         Self { inner, buf }
@@ -44,7 +43,7 @@ where
 
 impl<P> Receiver<P> for UdpNetReceiver<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     fn peek(&mut self) -> Result<P, error::PeekError> {
         self.inner.peek(&mut self.buf)

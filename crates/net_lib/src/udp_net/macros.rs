@@ -9,7 +9,7 @@ macro_rules! socket_options {
     ($name:ident, $inner:ident) => {
         impl<P> $crate::udp_net::SocketOptions for $name<P>
         where
-            P: $crate::traits::Bytes,
+            P: ::serde::Serialize + ::serde::de::DeserializeOwned,
         {
             fn read_timeout(&self) -> ::std::io::Result<Option<std::time::Duration>> {
                 self.$inner.read_timeout()
@@ -79,7 +79,7 @@ macro_rules! buf_ops {
     ($name:ident, $buf:ident, true) => {
         impl<P> $crate::udp_net::BufOps for $name<P>
         where
-            P: $crate::traits::Bytes,
+            P: ::serde::Serialize + ::serde::de::DeserializeOwned,
         {
             fn buf_len(&self) -> usize {
                 self.$buf.len() - $crate::udp_net::TRUNCATION_BYTE
@@ -103,7 +103,7 @@ macro_rules! buf_ops {
     ($name:ident, $buf:ident, false) => {
         impl<P> $crate::udp_net::BufOps for $name<P>
         where
-            P: $crate::traits::Bytes,
+            P: ::serde::Serialize + ::serde::de::DeserializeOwned,
         {
             fn buf_len(&self) -> usize {
                 self.$buf.len()

@@ -5,19 +5,18 @@ use std::{
     time::Duration,
 };
 
+use serde::{Serialize, de::DeserializeOwned};
+
 use super::error::SendError;
-use crate::{
-    traits::Bytes,
-    udp_net::{
-        MAX_IPV4_DATAGRAM_SIZE, MAX_IPV6_DATAGRAM_SIZE, SocketOptions,
-        error::{PeekError, RecvError},
-    },
+use crate::udp_net::{
+    MAX_IPV4_DATAGRAM_SIZE, MAX_IPV6_DATAGRAM_SIZE, SocketOptions,
+    error::{PeekError, RecvError},
 };
 
 #[derive(Debug)]
 pub struct Inner<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     socket: UdpSocket,
     addr_type: AddrType,
@@ -27,7 +26,7 @@ where
 
 impl<P> Inner<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     pub fn bind(addr: impl ToSocketAddrs) -> io::Result<Self> {
         let socket = UdpSocket::bind(addr)?;
@@ -59,8 +58,8 @@ where
 
     /// Send a `P` to the connected address.
     pub fn send(&self, packet: &P, buf: &mut [u8]) -> Result<(), SendError> {
-        let len = packet.to_bytes(buf)?;
-        self.send_bytes(&buf[..len])?;
+        let slice = postcard::to_slice(packet, buf)?;
+        self.send_bytes(slice)?;
 
         Ok(())
     }
@@ -83,8 +82,8 @@ where
         addr: impl ToSocketAddrs,
         buf: &mut [u8],
     ) -> Result<(), SendError> {
-        let len = packet.to_bytes(buf)?;
-        self.send_bytes_to(&buf[..len], addr)?;
+        let slice = postcard::to_slice(packet, buf)?;
+        self.send_bytes_to(slice, addr)?;
 
         Ok(())
     }
@@ -95,7 +94,7 @@ where
     pub fn peek(&self, buf: &mut [u8]) -> Result<P, PeekError> {
         let len = self.socket.peek(buf)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
-        Ok(P::from_bytes(&buf[..len])?)
+        Ok(postcard::from_bytes(&buf[..len])?)
     }
 
     /// Peek a `P` from an address.
@@ -104,7 +103,7 @@ where
     pub fn peek_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), PeekError> {
         let (len, addr) = self.socket.peek_from(buf)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
-        let packet = P::from_bytes(&buf[..len])?;
+        let packet = postcard::from_bytes(&buf[..len])?;
 
         Ok((packet, addr))
     }
@@ -113,14 +112,14 @@ where
     pub fn recv(&self, buf: &mut [u8]) -> Result<P, RecvError> {
         let len = self.socket.recv(buf)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
-        Ok(P::from_bytes(&buf[..len])?)
+        Ok(postcard::from_bytes(&buf[..len])?)
     }
 
     /// Receive a `P` from an address.
     pub fn recv_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), RecvError> {
         let (len, addr) = self.socket.recv_from(buf)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
-        let packet = P::from_bytes(&buf[..len])?;
+        let packet = postcard::from_bytes(&buf[..len])?;
 
         Ok((packet, addr))
     }
@@ -159,7 +158,7 @@ where
 
 impl<P> SocketOptions for Inner<P>
 where
-    P: Bytes,
+    P: Serialize + DeserializeOwned,
 {
     fn read_timeout(&self) -> io::Result<Option<std::time::Duration>> {
         self.socket.read_timeout()
@@ -219,101 +218,20 @@ impl From<SocketAddr> for AddrType {
 
 #[cfg(test)]
 mod tests {
-    use crate::traits::{FromByteError, FromBytes, InsufficientBuffer, ToBytes};
+    use serde::Deserialize;
 
     use super::*;
 
-    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
     enum Packet {
         Option1,
         Option2,
     }
 
-    impl ToBytes for Packet {
-        fn to_bytes(&self, buf: &mut [u8]) -> Result<usize, crate::traits::InsufficientBuffer> {
-            if buf.len() < 1 {
-                return Err(InsufficientBuffer);
-            }
-
-            buf[0] = self.clone() as u8;
-            Ok(1)
-        }
-    }
-
-    impl FromBytes for Packet {
-        fn from_bytes(buf: &[u8]) -> Result<Self, crate::traits::FromByteError> {
-            if buf.len() != 1 {
-                return Err(FromByteError::UnexpectedEOF {
-                    needed: 1,
-                    available: buf.len(),
-                    desc: "Packet need 1 byte for decoding".to_string(),
-                });
-            }
-
-            match buf[0] {
-                0 => Ok(Self::Option1),
-                1 => Ok(Self::Option2),
-                _ => Err(crate::traits::FromByteError::InvalidData {
-                    offset: 0,
-                    desc: "invalid value for Packet".to_string(),
-                }),
-            }
-        }
-    }
-
-    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
     enum BigPacket {
         Option1(u32),
         Option2(u32),
-    }
-
-    impl ToBytes for BigPacket {
-        fn to_bytes(&self, buf: &mut [u8]) -> Result<usize, InsufficientBuffer> {
-            if buf.len() < 5 {
-                return Err(InsufficientBuffer);
-            }
-
-            let v = match self {
-                Self::Option1(v) => {
-                    buf[0] = 128;
-
-                    v
-                }
-                Self::Option2(v) => {
-                    buf[0] = 64;
-
-                    v
-                }
-            };
-
-            buf[1..5].copy_from_slice(&v.to_be_bytes());
-
-            Ok(5)
-        }
-    }
-
-    impl FromBytes for BigPacket {
-        fn from_bytes(buf: &[u8]) -> Result<Self, FromByteError> {
-            if buf.len() != 5 {
-                return Err(FromByteError::InvalidData {
-                    offset: 0,
-                    desc: "Buffer has the wrong length".to_string(),
-                });
-            }
-
-            let mut v_bytes = [0u8; 4];
-            v_bytes.copy_from_slice(&buf[1..5]);
-            let v = u32::from_be_bytes(v_bytes);
-
-            match buf[0] {
-                128 => Ok(Self::Option1(v)),
-                64 => Ok(Self::Option2(v)),
-                _ => Err(FromByteError::InvalidData {
-                    offset: 0,
-                    desc: "Invalid enum".to_string(),
-                }),
-            }
-        }
     }
 
     #[test]
@@ -386,8 +304,8 @@ mod tests {
         let first_packet = BigPacket::Option1(100);
         inner1.send(&first_packet, &mut big_buf).unwrap(); // Sufficient large buffer to fit `BigPacket`.
 
-        let mut slightly_tiny_buf = [0u8; 4]; // Slightly too tiny buffer to fit a `BigPacket`.
-        let mut fitting_buf = [0u8; 6]; // Exactly fitting buf with +1 space to detect truncation.
+        let mut slightly_tiny_buf = [0u8; 1]; // Slightly too tiny buffer to fit a `BigPacket`.
+        let mut fitting_buf = [0u8; 3]; // Exactly fitting buf with +1 space to detect truncation.
         assert_matches!(
             inner2.peek(&mut slightly_tiny_buf),
             Err(PeekError::DatagramTruncated)
@@ -395,7 +313,7 @@ mod tests {
         let packet = inner2.recv(&mut fitting_buf).unwrap();
         assert_eq!(packet, first_packet);
 
-        let second_packet = BigPacket::Option2(500);
+        let second_packet = BigPacket::Option2(127);
         inner2.send(&second_packet, &mut big_buf).unwrap();
 
         let packet = inner1.peek(&mut fitting_buf).unwrap();
@@ -408,7 +326,7 @@ mod tests {
 
     fn get_inners<P>() -> (Inner<P>, SocketAddr, Inner<P>, SocketAddr)
     where
-        P: Bytes,
+        P: Serialize + DeserializeOwned,
     {
         let inner1: Inner<P> = Inner::bind("127.0.0.1:0").unwrap();
         let addr1 = inner1.local_addr().unwrap();

@@ -5,7 +5,7 @@ pub enum SendError {
     #[error("{0}")]
     Io(#[from] io::Error),
     #[error("{0}")]
-    ToBytes(#[from] crate::traits::InsufficientBuffer),
+    Serialize(#[from] postcard::Error),
 }
 
 pub type PeekError = RecvError;
@@ -15,7 +15,7 @@ pub enum RecvError {
     #[error("{0}")]
     Io(#[from] io::Error),
     #[error("{0}")]
-    FromBytes(#[from] crate::traits::FromByteError),
+    Deserialize(#[from] postcard::Error),
     #[error("Datagram Truncated Error: The datagram was truncated")]
     DatagramTruncated,
 }
