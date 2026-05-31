@@ -1,3 +1,5 @@
+//! Error types for the `udp_net` module.
+
 use std::io;
 
 #[derive(Debug, thiserror::Error)]

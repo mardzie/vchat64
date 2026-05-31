@@ -1,3 +1,7 @@
+//! UDP related types and traits.
+//!
+//! This module provides UDP networking types.
+
 use std::{
     io,
     net::{SocketAddr, ToSocketAddrs},
@@ -26,7 +30,6 @@ const TRUNCATION_BYTE: usize = 1;
 
 /// IPv4 normally is 20 bytes.
 const IPV4_HEADER_SIZE: usize = 20;
-const IPV4_OPTIONS_SIZE: usize = 40;
 const IPV4_MIN_MTU_SIZE: usize = 576;
 /// IPv6 has 40 bytes.
 const IPV6_HEADER_SIZE: usize = 40;
@@ -36,13 +39,20 @@ const UDP_HEADER_SIZE: usize = 8;
 const MAX_IPV4_DATAGRAM_SIZE: usize = u16::MAX as usize - IPV4_HEADER_SIZE - UDP_HEADER_SIZE;
 const MAX_IPV6_DATAGRAM_SIZE: usize = u16::MAX as usize - IPV6_HEADER_SIZE - UDP_HEADER_SIZE;
 
-/// The maximum buffer size. The size of the biggest possible datagram minus Headers.
+/// The maximum *reasonable* buffer size. The size of the biggest possible payload for **IPv4** subtracting headers.
+///
+/// `65535 bytes - IPv4_HEADER (20 bytes) - UDP_HEADER (8 bytes)`
 pub const LOOPBACK_BUF_SIZE: usize = MAX_IPV4_DATAGRAM_SIZE;
+/// The typical maximum payload size for **IPv6**.
+///
+/// `IPv6_MTU (1280 bytes) - IPv6_HEADER (40 bytes) - UDP_HEADER (8 bytes)`
 pub const INTERNET_BUF_SIZE: usize = IPV6_MIN_MTU_SIZE - IPV6_HEADER_SIZE - UDP_HEADER_SIZE;
-pub const INTERNET_BUF_SIZE_LEGACY: usize =
-    IPV4_MIN_MTU_SIZE - (IPV4_HEADER_SIZE + IPV4_OPTIONS_SIZE) - UDP_HEADER_SIZE;
+/// The typical maximum payload size for **IPv4**.
+///
+/// `IPv4_MTU (576 bytes) - IPv4_HEADER (20 bytes) - UDP_HEADER (8 bytes)`
+pub const INTERNET_BUF_SIZE_LEGACY: usize = IPV4_MIN_MTU_SIZE - IPV4_HEADER_SIZE - UDP_HEADER_SIZE;
 
-/// A simple UDP networking abstraction.
+/// A simple thin UDP networking abstraction.
 ///
 /// ```rust ignore
 /// use net_lib::udp_net::{UdpNet, INTERNET_BUF_SIZE};
