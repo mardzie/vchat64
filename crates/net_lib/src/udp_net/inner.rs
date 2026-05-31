@@ -2,15 +2,15 @@ use std::{
     io,
     marker::PhantomData,
     net::{SocketAddr, ToSocketAddrs, UdpSocket},
-    time::Duration,
 };
 
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::error::SendError;
 use crate::udp_net::{
-    MAX_IPV4_DATAGRAM_SIZE, MAX_IPV6_DATAGRAM_SIZE, SocketOptions,
+    MAX_IPV4_DATAGRAM_SIZE, MAX_IPV6_DATAGRAM_SIZE,
     error::{PeekError, RecvError},
+    macros::socket_options,
 };
 
 #[derive(Debug)]
@@ -176,38 +176,7 @@ where
     }
 }
 
-impl<P> SocketOptions for Inner<P>
-where
-    P: Serialize + DeserializeOwned,
-{
-    fn read_timeout(&self) -> io::Result<Option<std::time::Duration>> {
-        self.socket.read_timeout()
-    }
-
-    fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
-        self.socket.set_read_timeout(dur)
-    }
-
-    fn write_timeout(&self) -> io::Result<Option<Duration>> {
-        self.socket.write_timeout()
-    }
-
-    fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
-        self.socket.set_write_timeout(dur)
-    }
-
-    fn ttl(&self) -> io::Result<u32> {
-        self.socket.ttl()
-    }
-
-    fn set_ttl(&self, ttl: u32) -> io::Result<()> {
-        self.socket.set_ttl(ttl)
-    }
-
-    fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
-        self.socket.set_nonblocking(nonblocking)
-    }
-}
+socket_options!(Inner, socket);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum AddrType {
