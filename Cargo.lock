@@ -316,6 +316,7 @@ dependencies = [
  "iana-time-zone",
  "js-sys",
  "num-traits",
+ "serde",
  "wasm-bindgen",
  "windows-link",
 ]
@@ -3584,7 +3585,9 @@ dependencies = [
  "crossbeam",
  "dasp",
  "opus",
+ "postcard",
  "ringbuf",
+ "serde",
  "thiserror 2.0.18",
  "tracing",
 ]
