@@ -41,15 +41,20 @@ where
         })
     }
 
+    /// Connects this socket to and remote address.
+    ///
+    /// [`Inner::send()`], [`Inner::peek()`] and [`Inner::recv()`] will fail when connect was not called beforehand [`Inner::connect()`].
     pub fn connect(&self, addr: impl ToSocketAddrs) -> io::Result<()> {
         self.socket.connect(addr)
     }
 
     /// Send bytes directly to the connected address.
     ///
-    /// The `buf`s content must be able to be turned back into `P` with the `FromBytes` trait or the receiver will get an error.
+    /// The `buf`s content must be able to be turned back into `P` with the `Deserialize` trait or the receiver will get an error.
     ///
     /// This skips the to_bytes call and is useful if the same packet gets sent multiple times to the connected address.
+    ///
+    /// [`Inner::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
     pub fn send_bytes(&self, buf: &[u8]) -> io::Result<()> {
         self.socket.send(buf)?;
 
@@ -57,6 +62,8 @@ where
     }
 
     /// Send a `P` to the connected address.
+    ///
+    /// [`Inner::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
     pub fn send(&self, packet: &P, buf: &mut [u8]) -> Result<(), SendError> {
         let slice = postcard::to_slice(packet, buf)?;
         self.send_bytes(slice)?;
@@ -66,7 +73,7 @@ where
 
     /// Send bytes directly to the address.
     ///
-    /// The `buf`s content must be able to be turned back into `P` with the `FromBytes` trait or the receiver will get an error.
+    /// The `buf`s content must be able to be turned back into `P` with the `Deserialize` trait or the receiver will get an error.
     ///
     /// This skips the to_bytes call and is useful if the same packet gets sent multiple times to one or more addresses.
     pub fn send_bytes_to(&self, buf: &[u8], addr: impl ToSocketAddrs) -> io::Result<()> {
@@ -91,13 +98,15 @@ where
     /// Peek a `P` from the connected address.
     ///
     /// This will not remove the `P` from the sockets received datagrams.
+    ///
+    /// [`Inner::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
     pub fn peek(&self, buf: &mut [u8]) -> Result<P, PeekError> {
         let len = self.socket.peek(buf)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
         Ok(postcard::from_bytes(&buf[..len])?)
     }
 
-    /// Peek a `P` from an address.
+    /// Peek a `P` from the socket.
     ///
     /// This will not remove the `P` from the sockets received datagrams.
     pub fn peek_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), PeekError> {
@@ -109,13 +118,15 @@ where
     }
 
     /// Receive a `P` from the connected address.
+    ///
+    /// [`Inner::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
     pub fn recv(&self, buf: &mut [u8]) -> Result<P, RecvError> {
         let len = self.socket.recv(buf)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
         Ok(postcard::from_bytes(&buf[..len])?)
     }
 
-    /// Receive a `P` from an address.
+    /// Receive a `P` from the socket.
     pub fn recv_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), RecvError> {
         let (len, addr) = self.socket.recv_from(buf)?;
         Self::check_for_truncation(&self.addr_type, buf, len)?;
@@ -124,14 +135,23 @@ where
         Ok((packet, addr))
     }
 
+    /// Returns the local sockets socket address.
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.socket.local_addr()
     }
 
+    /// Returns the socket address of the remote peer this socket was connected to.
+    ///
+    /// [`Inner::connect()`] will connect the socket to a remote address.
+    /// This method will return an [`std::io::ErrorKind::NotConnected`] error if the socket is not connected.
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.socket.peer_addr()
     }
 
+    /// Creates an independent handle to the same socket.
+    ///
+    /// The returned `Inner` is a reference to the same underlying socket with the same address.
+    /// Both handles will read and write the same address and port and options set on one socket will be propagated to the other one.
     pub fn try_clone(&self) -> io::Result<Self> {
         let socket = self.socket.try_clone()?;
 

@@ -84,21 +84,29 @@ where
         })
     }
 
+    /// Connects this socket to and remote address.
+    ///
+    /// [`UdpNet::send()`], [`UdpNet::peek()`] and [`UdpNet::recv()`] will fail when connect was not called beforehand [`UdpNet::connect()`].
     pub fn connect(&self, addr: impl ToSocketAddrs) -> io::Result<()> {
         self.inner.connect(addr)
     }
 
+    /// Returns the local sockets socket address.
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.inner.local_addr()
     }
 
+    /// Returns the socket address of the remote peer this socket was connected to.
+    ///
+    /// [`Inner::connect()`] will connect the socket to a remote address.
+    /// This method will return an [`std::io::ErrorKind::NotConnected`] error if the socket is not connected.
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.inner.peer_addr()
     }
 
     /// Splits the socket.
     ///
-    /// Both returned `UdpNetSender` and `UdpNetReceiver` will share one os socket but have two different buffers.
+    /// Both returned `UdpNetSender` and `UdpNetReceiver` will share one os socket but have two different handles and two different buffers.
     /// One extra buffer will be allocated on this call.
     pub fn split(self) -> io::Result<(UdpNetSender<P>, UdpNetReceiver<P>)> {
         Ok((
@@ -120,20 +128,36 @@ impl<P> Sender<P> for UdpNet<P>
 where
     P: Serialize + DeserializeOwned,
 {
+    /// Send bytes directly to the connected address.
+    ///
+    /// The `buf`s content must be able to be turned back into `P` with the `Deserialize` trait or the receiver will get an error.
+    ///
+    /// This skips the to_bytes call and is useful if the same packet gets sent multiple times to the connected address.
+    ///
+    /// [`UdpNet::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
     fn send_bytes(&self, buf: &[u8]) -> io::Result<()> {
         self.inner.send_bytes(buf)
     }
 
+    /// Send a `P` to the connected address.
+    ///
+    /// [`UdpNet::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
     fn send(&mut self, packet: &P) -> Result<(), error::SendError> {
         self.inner.send(packet, Self::usable_buf(&mut self.buf))?;
 
         Ok(())
     }
 
+    /// Send bytes directly to the address.
+    ///
+    /// The `buf`s content must be able to be turned back into `P` with the `Deserialize` trait or the receiver will get an error.
+    ///
+    /// This skips the to_bytes call and is useful if the same packet gets sent multiple times to one or more addresses.
     fn send_bytes_to(&self, buf: &[u8], addr: impl ToSocketAddrs) -> io::Result<()> {
         self.inner.send_bytes_to(buf, addr)
     }
 
+    /// Send a `P` to an address.
     fn send_to(&mut self, packet: &P, addr: impl ToSocketAddrs) -> Result<(), error::SendError> {
         self.inner
             .send_to(packet, addr, Self::usable_buf(&mut self.buf))?;
@@ -146,18 +170,30 @@ impl<P> Receiver<P> for UdpNet<P>
 where
     P: Serialize + DeserializeOwned,
 {
+    /// Peek a `P` from the connected address.
+    ///
+    /// This will not remove the `P` from the sockets received datagrams.
+    ///
+    /// [`UdpNet::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
     fn peek(&mut self) -> Result<P, error::PeekError> {
         self.inner.peek(&mut self.buf)
     }
 
+    /// Peek a `P` from the socket.
+    ///
+    /// This will not remove the `P` from the sockets received datagrams.
     fn peek_from(&mut self) -> Result<(P, SocketAddr), error::PeekError> {
         self.inner.peek_from(&mut self.buf)
     }
 
+    /// Receive a `P` from the connected address.
+    ///
+    /// [`UdpNet::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
     fn recv(&mut self) -> Result<P, error::RecvError> {
         self.inner.recv(&mut self.buf)
     }
 
+    /// Receive a `P` from the socket.
     fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError> {
         self.inner.recv_from(&mut self.buf)
     }
