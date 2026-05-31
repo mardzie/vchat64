@@ -6,15 +6,17 @@
 /// socket_options!(name: ident, inner: ident);
 /// ```
 macro_rules! socket_options {
-    ($name:ident, $inner:ident) => {
+    ($name:ident, $inner:ident $(, #[$attr:meta])*) => {
         impl<P> $crate::udp_net::SocketOptions for $name<P>
         where
             P: ::serde::Serialize + ::serde::de::DeserializeOwned,
         {
+            $(#[$attr])*
             fn read_timeout(&self) -> ::std::io::Result<Option<std::time::Duration>> {
                 self.$inner.read_timeout()
             }
 
+            $(#[$attr])*
             fn set_read_timeout(
                 &self,
                 dur: Option<::std::time::Duration>,
@@ -22,10 +24,12 @@ macro_rules! socket_options {
                 self.$inner.set_read_timeout(dur)
             }
 
+            $(#[$attr])*
             fn write_timeout(&self) -> ::std::io::Result<Option<::std::time::Duration>> {
                 self.$inner.write_timeout()
             }
 
+            $(#[$attr])*
             fn set_write_timeout(
                 &self,
                 dur: Option<::std::time::Duration>,
@@ -33,14 +37,17 @@ macro_rules! socket_options {
                 self.$inner.set_write_timeout(dur)
             }
 
+            $(#[$attr])*
             fn ttl(&self) -> ::std::io::Result<u32> {
                 self.$inner.ttl()
             }
 
+            $(#[$attr])*
             fn set_ttl(&self, ttl: u32) -> ::std::io::Result<()> {
                 self.$inner.set_ttl(ttl)
             }
 
+            $(#[$attr])*
             fn set_nonblocking(&self, nonblocking: bool) -> ::std::io::Result<()> {
                 self.$inner.set_nonblocking(nonblocking)
             }
@@ -81,6 +88,8 @@ macro_rules! buf_ops {
         where
             P: ::serde::Serialize + ::serde::de::DeserializeOwned,
         {
+            /// Get the current usable buffer length.
+            #[inline]
             fn buf_len(&self) -> usize {
                 self.$buf.len() - $crate::udp_net::TRUNCATION_BYTE
             }
@@ -89,7 +98,7 @@ macro_rules! buf_ops {
             /// This will either expand or shrink the buffer.
             ///
             /// This operation can be expensive.
-            /// Only use when necessary.
+            /// Use with caution.
             fn resize_buf(&mut self, new_len: usize) {
                 assert!(new_len > 0);
                 $crate::udp_net::resize_buffer(
@@ -105,15 +114,17 @@ macro_rules! buf_ops {
         where
             P: ::serde::Serialize + ::serde::de::DeserializeOwned,
         {
+            /// Returns the current buffer length.
+            #[inline]
             fn buf_len(&self) -> usize {
                 self.$buf.len()
             }
 
-            /// Resize the buffer to the `new_len` of usable bytes.
+            /// Resize the buffer to the `new_len`.
             /// This will either expand or shrink the buffer.
             ///
             /// This operation can be expensive.
-            /// Only use when necessary.
+            /// Use with caution.
             fn resize_buf(&mut self, new_len: usize) {
                 assert!(new_len > 0);
                 $crate::udp_net::resize_buffer(&mut self.$buf, new_len);

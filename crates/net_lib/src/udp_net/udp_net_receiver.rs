@@ -31,11 +31,13 @@ where
     /// Connects this socket to and remote address.
     ///
     /// [`UdpNetReceiver::peek()`] and [`UdpNetReceiver::recv()`] will fail when connect was not called beforehand [`UdpNetReceiver::connect()`].
+    #[inline]
     pub fn connect(&self, addr: impl ToSocketAddrs) -> io::Result<()> {
         self.inner.connect(addr)
     }
 
     /// Returns the local sockets socket address.
+    #[inline]
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.inner.local_addr()
     }
@@ -44,6 +46,7 @@ where
     ///
     /// [`Inner::connect()`] will connect the socket to a remote address.
     /// This method will return an [`std::io::ErrorKind::NotConnected`] error if the socket is not connected.
+    #[inline]
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.inner.peer_addr()
     }
@@ -58,6 +61,7 @@ where
     /// This will not remove the `P` from the sockets received datagrams.
     ///
     /// [`UdpNetReceiver::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
+    #[inline]
     fn peek(&mut self) -> Result<P, error::PeekError> {
         self.inner.peek(&mut self.buf)
     }
@@ -65,6 +69,7 @@ where
     /// Peek a `P` from the socket.
     ///
     /// This will not remove the `P` from the sockets received datagrams.
+    #[inline]
     fn peek_from(&mut self) -> Result<(P, SocketAddr), error::PeekError> {
         self.inner.peek_from(&mut self.buf)
     }
@@ -72,11 +77,13 @@ where
     /// Receive a `P` from the connected address.
     ///
     /// [`UdpNetReceiver::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
+    #[inline]
     fn recv(&mut self) -> Result<P, error::RecvError> {
         self.inner.recv(&mut self.buf)
     }
 
     /// Receive a `P` from the socket.
+    #[inline]
     fn recv_from(&mut self) -> Result<(P, SocketAddr), error::RecvError> {
         self.inner.recv_from(&mut self.buf)
     }
@@ -84,4 +91,4 @@ where
 
 buf_ops!(UdpNetReceiver, buf);
 
-socket_options!(UdpNetReceiver, inner);
+socket_options!(UdpNetReceiver, inner, #[inline]);
