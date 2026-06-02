@@ -1,10 +1,6 @@
 use std::{collections::VecDeque, io, net::ToSocketAddrs};
 
-use crate::{
-    helpers::calculate_version,
-    udp_packet_net::{self, UdpPacketNet, packet::Packet},
-    voice_net::packets::BufferedPacket,
-};
+use crate::{helpers::VERSION_NUMBER, voice_net::packets::BufferedPacket};
 
 pub mod error;
 pub(crate) mod packets;
@@ -13,8 +9,6 @@ const PACKET_BUF_TIME_IN_QUEUE: chrono::Duration = chrono::Duration::millisecond
 
 #[derive(Debug)]
 pub struct VoiceNet {
-    current_packet_version: u32,
-
     packet_net: UdpPacketNet,
 
     incoming_packet_buf: VecDeque<BufferedPacket>,
@@ -26,11 +20,8 @@ impl VoiceNet {
         A: ToSocketAddrs,
     {
         let packet_net = UdpPacketNet::new(addr)?;
-        let current_packet_version = calculate_version();
 
         Ok(Self {
-            current_packet_version,
-
             packet_net,
 
             incoming_packet_buf: VecDeque::with_capacity(1024),
@@ -90,7 +81,7 @@ impl VoiceNet {
         };
 
         // Version
-        if packet.header().version() != self.current_packet_version {
+        if packet.header().version() != VERSION_NUMBER {
             return Err("Version mismatch: Dropping packet.".to_string());
         };
 
