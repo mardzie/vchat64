@@ -28,24 +28,32 @@ impl<P> Inner<P>
 where
     P: Serialize + DeserializeOwned,
 {
-    pub fn bind(addr: impl ToSocketAddrs) -> io::Result<Self> {
+    pub fn bind(addr: impl ToSocketAddrs) -> io::Result<(Self, SocketAddr)> {
         let socket = UdpSocket::bind(addr)?;
         let addr = socket.local_addr()?;
         let addr_type = AddrType::from(addr);
 
-        Ok(Self {
-            socket,
-            addr_type,
+        tracing::info!("Bound socket to {}", addr);
 
-            packet_phantom_data: PhantomData,
-        })
+        Ok((
+            Self {
+                socket,
+                addr_type,
+
+                packet_phantom_data: PhantomData,
+            },
+            addr,
+        ))
     }
 
     /// Connects this socket to and remote address.
     ///
     /// [`Inner::send()`], [`Inner::peek()`] and [`Inner::recv()`] will fail when connect was not called beforehand [`Inner::connect()`].
     pub fn connect(&self, addr: impl ToSocketAddrs) -> io::Result<()> {
-        self.socket.connect(addr)
+        self.socket.connect(addr)?;
+        tracing::debug!("Connected socket to {}", self.peer_addr()?);
+
+        Ok(())
     }
 
     /// Send bytes directly to the connected address.
@@ -66,6 +74,7 @@ where
     /// [`Inner::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
     pub fn send(&self, packet: &P, buf: &mut [u8]) -> Result<(), SendError> {
         let slice = postcard::to_slice(packet, buf)?;
+        tracing::trace!(bytes = slice.len(), "Sending packet to connected address");
         self.send_bytes(slice)?;
 
         Ok(())
@@ -90,6 +99,7 @@ where
         buf: &mut [u8],
     ) -> Result<(), SendError> {
         let slice = postcard::to_slice(packet, buf)?;
+        tracing::trace!(bytes = slice.len(), "Sending packet to address");
         self.send_bytes_to(slice, addr)?;
 
         Ok(())
@@ -102,6 +112,7 @@ where
     /// [`Inner::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
     pub fn peek(&self, buf: &mut [u8]) -> Result<P, PeekError> {
         let len = self.socket.peek(buf)?;
+        tracing::trace!(bytes = len, "Peeked packet from connected address");
         Self::check_for_truncation(&self.addr_type, buf, len)?;
         Ok(postcard::from_bytes(&buf[..len])?)
     }
@@ -111,6 +122,7 @@ where
     /// This will not remove the `P` from the sockets received datagrams.
     pub fn peek_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), PeekError> {
         let (len, addr) = self.socket.peek_from(buf)?;
+        tracing::trace!(bytes = len, from = %addr, "Peeked packet");
         Self::check_for_truncation(&self.addr_type, buf, len)?;
         let packet = postcard::from_bytes(&buf[..len])?;
 
@@ -122,6 +134,7 @@ where
     /// [`Inner::connect()`] will connect the socket to a remote address. This method will fail if the socket is not connected.
     pub fn recv(&self, buf: &mut [u8]) -> Result<P, RecvError> {
         let len = self.socket.recv(buf)?;
+        tracing::trace!(bytes = len, "Received packet from connected address");
         Self::check_for_truncation(&self.addr_type, buf, len)?;
         Ok(postcard::from_bytes(&buf[..len])?)
     }
@@ -129,6 +142,7 @@ where
     /// Receive a `P` from the socket.
     pub fn recv_from(&self, buf: &mut [u8]) -> Result<(P, SocketAddr), RecvError> {
         let (len, addr) = self.socket.recv_from(buf)?;
+        tracing::trace!(bytes = len, from = %addr, "Received packet");
         Self::check_for_truncation(&self.addr_type, buf, len)?;
         let packet = postcard::from_bytes(&buf[..len])?;
 
@@ -165,10 +179,19 @@ where
 
     /// Uses the last byte as an indicator that the datagram was truncated.
     /// This does not hold true when the buffer is the `MAX_DATAGRAM_SIZE`
-    fn check_for_truncation(addr_type: &AddrType, buf: &[u8], len: usize) -> Result<(), RecvError> {
+    fn check_for_truncation(
+        addr_type: &AddrType,
+        buf: &[u8],
+        received_len: usize,
+    ) -> Result<(), RecvError> {
         // `max_datagram_size` is the maximum size a datagram can have.
         // When the `buf` is that size the truncation check gets disabled and the last byte can be used as a data byte.
-        if buf.len() < addr_type.max_datagram_size() && len == buf.len() {
+        if buf.len() < addr_type.max_datagram_size() && received_len == buf.len() {
+            tracing::warn!(
+                buf_len = buf.len(),
+                received = received_len,
+                "Datagram truncated"
+            );
             return Err(PeekError::DatagramTruncated);
         }
 
@@ -317,10 +340,8 @@ mod tests {
     where
         P: Serialize + DeserializeOwned,
     {
-        let inner1: Inner<P> = Inner::bind("127.0.0.1:0").unwrap();
-        let addr1 = inner1.local_addr().unwrap();
-        let inner2: Inner<P> = Inner::bind("127.0.0.1:0").unwrap();
-        let addr2 = inner2.local_addr().unwrap();
+        let (inner1, addr1) = Inner::bind("127.0.0.1:0").unwrap();
+        let (inner2, addr2) = Inner::bind("127.0.0.1:0").unwrap();
 
         (inner1, addr1, inner2, addr2)
     }
