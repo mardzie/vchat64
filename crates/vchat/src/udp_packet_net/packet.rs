@@ -1,4 +1,4 @@
-use crate::{hash, helpers::calculate_version};
+use crate::{hash, helpers::VERSION_NUMBER};
 
 pub const HEADER_LEN: usize = 4 + 8 + 4;
 
@@ -92,7 +92,7 @@ impl Header {
         let checksum = hash::Crc32::checksum(payload);
 
         Self {
-            version: calculate_version(),
+            version: *VERSION_NUMBER,
             timestamp: chrono::Utc::now(),
             checksum,
         }
