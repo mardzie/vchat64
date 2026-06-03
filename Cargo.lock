@@ -2226,6 +2226,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "opus_dasp_bridge"
+version = "0.1.0"
+dependencies = [
+ "cpal",
+ "dasp",
+ "opus",
+]
+
+[[package]]
 name = "ordered-float"
 version = "4.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3600,11 +3609,8 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "color-eyre",
- "cpal",
  "crc32fast",
  "crossbeam",
- "dasp",
- "opus",
  "postcard",
  "rayon",
  "ringbuf",
