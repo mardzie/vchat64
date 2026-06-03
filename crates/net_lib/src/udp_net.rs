@@ -78,8 +78,10 @@ where
             "`buf_size` must be greater than `0`! It needs at least one data bit and one \"truncation detection byte\""
         );
 
+        let (inner, _) = Inner::bind(addr)?;
+
         Ok(Self {
-            inner: Inner::bind(addr)?,
+            inner,
             buf: vec![0u8; buf_size + TRUNCATION_BYTE],
         })
     }
@@ -113,6 +115,8 @@ where
     /// One extra buffer will be allocated on this call.
     #[inline]
     pub fn split(self) -> io::Result<(UdpNetSender<P>, UdpNetReceiver<P>)> {
+        tracing::debug!("Splitting UdpNet into sender/receiver");
+
         Ok((
             UdpNetSender::new(
                 self.inner.try_clone()?,
