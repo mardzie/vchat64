@@ -5,12 +5,10 @@ pub struct Crc32;
 
 impl Crc32 {
     /// Create a checksum with big endianess.
-    #[inline(always)]
     pub fn checksum(data: &[u8]) -> u32 {
         crc32fast::hash(data)
     }
 
-    #[inline(always)]
     pub fn verify_checksum(data: &[u8], checksum: u32) -> bool {
         Self::checksum(data) == checksum
     }
