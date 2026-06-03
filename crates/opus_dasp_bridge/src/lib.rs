@@ -1,14 +1,20 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use std::fmt::Debug;
+
+use cpal::Host;
+
+pub struct AudioBridge {
+    host: Host,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl AudioBridge {
+    pub fn new() -> Self {
+        let host = cpal::default_host();
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+        Self { host }
+    }
+}
+impl Debug for AudioBridge {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AudioBridge").finish()
     }
 }
