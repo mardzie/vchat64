@@ -1,11 +1,10 @@
 [package]
-name = "opus_dasp_bridge"
+name = "opus_cpal_bridge"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 cpal = "0.18.1"
-dasp = "0.11.0"
 opus = "0.3.1"
 rubato = "4.0.0"
 thiserror.workspace = true

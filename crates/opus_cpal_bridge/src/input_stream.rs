@@ -20,8 +20,6 @@ impl InputStream {
         let config = Self::pick_input_config(&device)?;
 
         tracing::info!("Input stream created");
-
-        
     }
 
     fn pick_input_config(device: &Device) -> Result<SupportedStreamConfig, cpal::Error> {
