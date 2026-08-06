@@ -1,13 +1,16 @@
+use std::fmt::Debug;
+
 use cpal::{
-    Device, SAMPLE_RATE_48K, SampleFormat, SupportedStreamConfig,
-    traits::{DeviceTrait, HostTrait},
+    Device, SAMPLE_RATE_48K, SampleFormat, Stream, SupportedStreamConfig,
+    traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 
-use crate::error::{DeviceType, StreamBuildError};
+use crate::error::{DeviceType, PlayPauseError, StreamBuildError};
 
-#[derive(Debug)]
 pub struct InputStream {
     device: Device,
+    config: SupportedStreamConfig,
+    stream: Option<Stream>,
 }
 
 impl InputStream {
@@ -20,6 +23,48 @@ impl InputStream {
         let config = Self::pick_input_config(&device)?;
 
         tracing::info!("Input stream created");
+
+        Ok(Self {
+            device,
+            config,
+            stream: None,
+        })
+    }
+
+    pub fn build_stream<T, D, E>(
+        &mut self,
+        data_callback: D,
+        error_callback: E,
+    ) -> Result<(), StreamBuildError>
+    where
+        T: cpal::SizedSample,
+        D: FnMut(&[T], &cpal::InputCallbackInfo) + Send + 'static,
+        E: FnMut(cpal::Error) + Send + 'static,
+    {
+        self.stream = Some(self.device.build_input_stream(
+            self.config.config(),
+            data_callback,
+            error_callback,
+            None,
+        )?);
+
+        Ok(())
+    }
+
+    pub fn record(&mut self) -> Result<(), PlayPauseError> {
+        if let Some(stream) = &self.stream {
+            stream.play()?;
+        }
+
+        Ok(())
+    }
+
+    pub fn pause(&mut self) -> Result<(), PlayPauseError> {
+        if let Some(stream) = &self.stream {
+            stream.pause()?;
+        }
+
+        Ok(())
     }
 
     fn pick_input_config(device: &Device) -> Result<SupportedStreamConfig, cpal::Error> {
@@ -35,5 +80,14 @@ impl InputStream {
             Some(cfg) => Ok(cfg),
             None => Ok(device.default_input_config()?),
         }
+    }
+}
+
+impl Debug for InputStream {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InputStream")
+            .field("device", &self.device)
+            .field("config", &self.config)
+            .finish()
     }
 }

@@ -22,3 +22,23 @@ impl Display for DeviceType {
         }
     }
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum PlayPauseError {
+    #[error("Device not available")]
+    DeviceNotAvailable,
+    #[error("Stream invalidated")]
+    StreamInvalidated,
+}
+
+impl From<cpal::Error> for PlayPauseError {
+    fn from(e: cpal::Error) -> Self {
+        use cpal::ErrorKind;
+
+        match e.kind() {
+            ErrorKind::DeviceNotAvailable => Self::DeviceNotAvailable,
+            ErrorKind::StreamInvalidated => Self::StreamInvalidated,
+            _ => unreachable!("{} is not a valid error for PlayPauseError", e),
+        }
+    }
+}
