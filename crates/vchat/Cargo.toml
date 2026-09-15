@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 chrono.workspace = true
 color-eyre.workspace = true
-crc32fast = "1.5.0"
+crc32fast = "1.5.2"
 crossbeam.workspace = true
 dasp = "0.11.0"
 postcard.workspace = true
