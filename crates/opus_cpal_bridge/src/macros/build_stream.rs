@@ -2,14 +2,15 @@ macro_rules! build_input_stream {
     (
         $input:expr,
         $callback:path,
-        ($($arg:expr),* $(,)?),
-        { $($variant:ident => $ty:ty),+ $(,)? }) => {
+        $args:tt,
+        { $($variant:ident),+ $(,)? }
+    ) => {
         match $input.config().sample_format() {
             $(
             ::cpal::SampleFormat::$variant => $input
-                .build_stream(
-                    move |buf: &[$ty], info| {
-                        $callback(buf, info, $($arg),*)
+                .build_input_stream(
+                    move |buf: &[$crate::macros::build_stream::cpal_sample_format_type!($variant)], info| {
+                        $crate::macros::build_stream::call_with!($callback, buf, info, $args)
                     },
                     move |e| ::tracing::error!(
                         concat!("Input Stream Error ", stringify!($ty), ": {}"), e
@@ -23,100 +24,84 @@ macro_rules! build_input_stream {
 }
 pub(crate) use build_input_stream;
 
-fn build_input_stream_old(
-    input: &mut InputStream,
-    input_notify: Sender<InputMessage>,
-    mut producer: Caching<Arc<SharedRb<Heap<f32>>>, true, false>,
-) {
-    match input.config().sample_format() {
-        SampleFormat::F32 => input
-            .build_stream(
-                move |buf: &[f32], info| {
-                    Self::input_data_callback(buf, info, &input_notify, &mut producer)
-                },
-                move |e| tracing::error!("Input Stream Error f32: {}", e),
-            )
-            .expect("Failed to create new f32 input stream."),
-        SampleFormat::F64 => input
-            .build_stream(
-                move |buf: &[f64], info| {
-                    Self::input_data_callback(buf, info, &input_notify, &mut producer)
-                },
-                move |e| tracing::error!("Input Stream Error f64: {}", e),
-            )
-            .expect("Failed to create new f64 input stream."),
-        SampleFormat::U8 => input
-            .build_stream(
-                move |buf: &[u8], info| {
-                    Self::input_data_callback(buf, info, &input_notify, &mut producer)
-                },
-                move |e| tracing::error!("Input Stream Error u8: {}", e),
-            )
-            .expect("Failed to create new u8 input stream."),
-        SampleFormat::U16 => input
-            .build_stream(
-                move |buf: &[u16], info| {
-                    Self::input_data_callback(buf, info, &input_notify, &mut producer)
-                },
-                move |e| tracing::error!("Input Stream Error u16: {}", e),
-            )
-            .expect("Failed to create new u16 input stream."),
-        SampleFormat::U32 => input
-            .build_stream(
-                move |buf: &[u32], info| {
-                    Self::input_data_callback(buf, info, &input_notify, &mut producer)
-                },
-                move |e| tracing::error!("Input Stream Error u32: {}", e),
-            )
-            .expect("Failed to create new u32 input stream."),
-        SampleFormat::U64 => input
-            .build_stream(
-                move |buf: &[u64], info| {
-                    Self::input_data_callback(buf, info, &input_notify, &mut producer)
-                },
-                move |e| tracing::error!("Input Stream Error u64: {}", e),
-            )
-            .expect("Failed to create new u64 input stream."),
-        SampleFormat::I8 => input
-            .build_stream(
-                move |buf: &[i8], info| {
-                    Self::input_data_callback(buf, info, &input_notify, &mut producer)
-                },
-                move |e| tracing::error!("Input Stream Error i8: {}", e),
-            )
-            .expect("Failed to create new i8 input stream."),
-        SampleFormat::I16 => input
-            .build_stream(
-                move |buf: &[i16], info| {
-                    Self::input_data_callback(buf, info, &input_notify, &mut producer)
-                },
-                move |e| tracing::error!("Input Stream Error i16: {}", e),
-            )
-            .expect("Failed to create new i16 input stream."),
-        SampleFormat::I32 => input
-            .build_stream(
-                move |buf: &[i32], info| {
-                    Self::input_data_callback(buf, info, &input_notify, &mut producer)
-                },
-                move |e| tracing::error!("Input Stream Error i32: {}", e),
-            )
-            .expect("Failed to create new i32 input stream."),
-        SampleFormat::I64 => input
-            .build_stream(
-                move |buf: &[i64], info| {
-                    Self::input_data_callback(buf, info, &input_notify, &mut producer)
-                },
-                move |e| tracing::error!("Input Stream Error i64: {}", e),
-            )
-            .expect("Failed to create new i64 input stream."),
-        format => panic!(
-            "Unsupported input sample format `SampleFormat::{}`!",
-            format
-        ),
-    }
-}
-
 macro_rules! build_output_stream {
-    () => {};
+    (
+        $output:expr,
+        $callback:path,
+        $args:tt,
+        { $($variant:ident),+ $(,)? }
+    ) => {
+        match $output.config().sample_format() {
+            $(
+            ::cpal::SampleFormat::$variant => $output
+                .build_output_stream(
+                    move |buf: &mut [$crate::macros::build_stream::cpal_sample_format_type!($variant)], info| {
+                        $crate::macros::build_stream::call_with!($callback, buf, info, $args)
+                    },
+                    move |e| ::tracing::error!(
+                        concat!("Output Stream Error ", stringify!($ty), ": {}"), e
+                    )
+                )
+                .expect(concat!("Failed to create new ", stringify!($ty), " output stream.")),
+            )+
+            format => panic!("Unsupported output sample format `SampleFormat::{}`!", format),
+        }
+    };
 }
 pub(crate) use build_output_stream;
+
+macro_rules! call_with {
+    ($callback:path, $buf:expr, $info:expr, ($($arg:expr),* $(,)?)) => {
+        $callback($buf, $info, $($arg),*)
+    };
+}
+pub(crate) use call_with;
+
+macro_rules! cpal_sample_format_type {
+    (F32) => {
+        f32
+    };
+    (F64) => {
+        f64
+    };
+    (U8) => {
+        u8
+    };
+    (U16) => {
+        u16
+    };
+    (U24) => {
+        u32
+    };
+    (U32) => {
+        u32
+    };
+    (U64) => {
+        u64
+    };
+    (I8) => {
+        i8
+    };
+    (I16) => {
+        i16
+    };
+    (I24) => {
+        i32
+    };
+    (I32) => {
+        i32
+    };
+    (I64) => {
+        i64
+    };
+    (DsdU8) => {
+        u8
+    };
+    (DsdU16) => {
+        u16
+    };
+    (DsdU32) => {
+        u32
+    };
+}
+pub(crate) use cpal_sample_format_type;
