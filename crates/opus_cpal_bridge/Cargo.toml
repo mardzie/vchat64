@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 cpal = "0.18.2"
 opus = "0.4.0"
+ringbuf.workspace = true
 rubato = "5.0.0"
 thiserror.workspace = true
 tracing.workspace = true
