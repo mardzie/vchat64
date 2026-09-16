@@ -43,6 +43,10 @@ impl Stream {
         self.config
     }
 
+    pub fn device_type(&self) -> DeviceType {
+        self.device_type
+    }
+
     fn pick_config(
         device_type: DeviceType,
         device: &Device,
