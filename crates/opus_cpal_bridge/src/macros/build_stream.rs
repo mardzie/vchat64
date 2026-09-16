@@ -1,16 +1,21 @@
 macro_rules! build_input_stream {
-    ($input:expr, $callback:ident, { $( $variant:ident => $ty:ty ),+ }) => {
+    (
+        $input:expr,
+        $callback:path,
+        ($($arg:expr),* $(,)?),
+        { $($variant:ident => $ty:ty),+ $(,)? }) => {
         match $input.config().sample_format() {
             $(
             ::cpal::SampleFormat::$variant => $input
                 .build_stream(
                     move |buf: &[$ty], info| {
-                        $callback(buf, info)
+                        $callback(buf, info, $($arg),*)
                     },
                     move |e| ::tracing::error!(
                         concat!("Input Stream Error ", stringify!($ty), ": {}"), e
                     )
-                ).expect(concat!("Failed to create new ", stringify!($ty), " input stream.")),
+                )
+                .expect(concat!("Failed to create new ", stringify!($ty), " input stream.")),
             )+
             format => panic!("Unsupported input sample format `SampleFormat::{}`!", format),
         }

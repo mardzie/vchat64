@@ -1,26 +1,9 @@
-use std::fmt::Display;
-
 #[derive(Debug, thiserror::Error)]
 pub enum StreamBuildError {
     #[error("Default {0} Device unavailable")]
-    DefaultDeviceUnavailable(DeviceType),
+    DefaultDeviceUnavailable(crate::stream::DeviceType),
     #[error("{0}")]
     Cpal(#[from] cpal::Error),
-}
-
-#[derive(Debug)]
-pub enum DeviceType {
-    Input,
-    Output,
-}
-
-impl Display for DeviceType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DeviceType::Input => write!(f, "input"),
-            DeviceType::Output => write!(f, "output"),
-        }
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -29,6 +12,9 @@ pub enum PlayPauseError {
     DeviceNotAvailable,
     #[error("Stream invalidated")]
     StreamInvalidated,
+    /// The Stream could not be paused.
+    #[error("Unsupported operation")]
+    UnsupportedOperation,
 }
 
 impl From<cpal::Error> for PlayPauseError {
@@ -38,6 +24,7 @@ impl From<cpal::Error> for PlayPauseError {
         match e.kind() {
             ErrorKind::DeviceNotAvailable => Self::DeviceNotAvailable,
             ErrorKind::StreamInvalidated => Self::StreamInvalidated,
+            ErrorKind::UnsupportedOperation => Self::UnsupportedOperation,
             _ => unreachable!("{} is not a valid error for PlayPauseError", e),
         }
     }
