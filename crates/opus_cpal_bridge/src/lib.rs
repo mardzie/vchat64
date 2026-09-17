@@ -103,8 +103,9 @@ mod audio_callback {
         let dropped = mono_len.saturating_sub(vacant_len);
         let buf_start = dropped * channels;
         let mono = buf[buf_start..].chunks_exact(channels).map(|frame| {
+            // Average all channels into one mono frame per chunk.
             frame.iter().map(|s| s.to_sample::<f32>()).sum::<f32>() * inverse_channels
-        }); // Average all channels into one mono frame per chunk.
+        });
         let pushed = producer.push_iter(mono);
         let overrun = mono_len - pushed;
 
