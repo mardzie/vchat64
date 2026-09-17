@@ -1,12 +1,7 @@
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
 
-use cpal::{Host, Sample};
-use ringbuf::{
-    SharedRb,
-    storage::Heap,
-    traits::{Consumer, Producer, Split},
-    wrap::caching::Caching,
-};
+use cpal::Host;
+use ringbuf::{SharedRb, storage::Heap, traits::Split};
 
 use crate::{
     error::StreamBuildError,
@@ -38,7 +33,9 @@ impl AudioBridge {
 
         let host = cpal::default_host();
         let mut input_stream = Stream::new(DeviceType::Input, &host)?;
-        build_input_stream!(input_stream, input_audio_callback, (&mut input_producer), {
+        let input_config = input_stream.config();
+        let channels = input_config.channels() as usize;
+        build_input_stream!(input_stream, audio_callback::input_audio_callback, (&mut input_producer, channels), {
             F32,
             F64,
             U8,
@@ -51,7 +48,7 @@ impl AudioBridge {
             I64,
         });
         let mut output_stream = Stream::new(DeviceType::Output, &host)?;
-        build_output_stream!(output_stream, output_audio_callback, (&mut output_consumer), {
+        build_output_stream!(output_stream, audio_callback::output_audio_callback, (&mut output_consumer), {
             F32,
             F64,
             U8,
@@ -81,29 +78,47 @@ impl Debug for AudioBridge {
     }
 }
 
-#[inline(always)]
-fn input_audio_callback<T>(
-    buf: &[T],
-    _: &cpal::InputCallbackInfo,
-    producer: &mut Caching<Arc<SharedRb<Heap<f32>>>, true, false>,
-) where
-    T: Copy + cpal::SizedSample,
-    f32: cpal::FromSample<T>,
-{
-    producer.push_iter(buf.iter().map(|sample| sample.to_sample::<f32>()));
-}
+mod audio_callback {
+    use cpal::Sample;
+    use ringbuf::traits::{Consumer, Producer};
 
-// TODO: Fill remaining space when not filled fully with silence.
-#[inline(always)]
-fn output_audio_callback<T>(
-    buf: &mut [T],
-    _: &cpal::OutputCallbackInfo,
-    consumer: &mut Caching<Arc<SharedRb<Heap<f32>>>, false, true>,
-) where
-    T: Copy + cpal::FromSample<f32>,
-    f32: cpal::SizedSample,
-{
-    for (sample, new_sample) in buf.iter_mut().zip(consumer.pop_iter()) {
-        *sample = new_sample.to_sample();
+    pub fn input_audio_callback<T>(
+        buf: &[T],
+        _: &cpal::InputCallbackInfo,
+        producer: &mut impl Producer<Item = f32>,
+        channels: usize,
+    ) where
+        T: cpal::SizedSample,
+        f32: cpal::FromSample<T>,
+    {
+        // cpal guarantees that each frame has all channels.
+        debug_assert_eq!(buf.len() % channels, 0);
+
+        let inverse_channels = 1.0 / channels as f32;
+
+        let mono_len = buf.len() / channels;
+        let vacant_len = producer.vacant_len();
+        let dropped = mono_len.saturating_sub(vacant_len);
+        let buf_start = dropped * channels;
+        let mono = buf[buf_start..].chunks_exact(channels).map(|frame| {
+            frame.iter().map(|s| s.to_sample::<f32>()).sum::<f32>() * inverse_channels
+        }); // Average all channels into one mono frame per chunk.
+        let pushed = producer.push_iter(mono);
+        let overrun = mono_len - pushed;
+
+        debug_assert_eq!(overrun, dropped);
+    }
+
+    // TODO: Fill remaining space when not filled fully with silence.
+    pub fn output_audio_callback<T>(
+        buf: &mut [T],
+        _: &cpal::OutputCallbackInfo,
+        consumer: &mut impl Consumer<Item = f32>,
+    ) where
+        T: cpal::SizedSample + cpal::FromSample<f32>,
+    {
+        for (sample, new_sample) in buf.iter_mut().zip(consumer.pop_iter()) {
+            *sample = new_sample.to_sample();
+        }
     }
 }
