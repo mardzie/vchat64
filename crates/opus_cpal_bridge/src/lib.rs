@@ -50,7 +50,6 @@ impl AudioBridge {
             I32,
             I64,
         });
-        input_stream.play().expect("Failed to start input stream");
         let mut output_stream = Stream::new(DeviceType::Output, &host)?;
         build_output_stream!(output_stream, output_audio_callback, (&mut output_consumer), {
             F32,
@@ -64,6 +63,8 @@ impl AudioBridge {
             I32,
             I64,
         });
+
+        input_stream.play().expect("Failed to start input stream");
         output_stream.play().expect("Failed to start output stream");
 
         Ok(Self {
