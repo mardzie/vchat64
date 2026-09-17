@@ -1,18 +1,18 @@
 #[derive(Debug, thiserror::Error)]
-pub enum AudioBridgeNewError {
-    #[error("Stream Build Error: {0}")]
-    StreamBuildError(#[from] StreamBuildError),
-    #[error("Opus Error: {0}")]
+pub enum AudioBridgeInitError {
+    #[error(transparent)]
+    StreamBuild(#[from] StreamBuildError),
+    #[error(transparent)]
     Opus(#[from] opus::Error),
-    #[error("Resampler Construction Error: {0}")]
-    ResamplerConstructionError(#[from] rubato::ResamplerConstructionError),
+    #[error(transparent)]
+    ResamplerConstruction(#[from] rubato::ResamplerConstructionError),
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum StreamBuildError {
     #[error("Default {0} Device unavailable")]
     DefaultDeviceUnavailable(crate::stream::DeviceType),
-    #[error("{0}")]
+    #[error(transparent)]
     Cpal(#[from] cpal::Error),
 }
 
