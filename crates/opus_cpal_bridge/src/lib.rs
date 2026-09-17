@@ -70,6 +70,8 @@ impl AudioBridge {
             output_stream,
         })
     }
+
+    pub fn pop(&mut self) {}
 }
 
 impl Debug for AudioBridge {
