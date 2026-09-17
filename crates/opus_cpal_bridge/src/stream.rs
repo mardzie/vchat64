@@ -162,6 +162,7 @@ impl Debug for Stream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Stream")
             .field("device", &self.device)
+            .field("device_type", &self.device_type)
             .field("config", &self.config)
             .finish()
     }

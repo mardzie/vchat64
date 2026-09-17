@@ -183,7 +183,20 @@ impl AudioBridge {
 
 impl Debug for AudioBridge {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AudioBridge").finish()
+        f.debug_struct("AudioBridge")
+            .field("host", &self.host.id())
+            .field("input_stream", &self.input_stream)
+            .field("max_backlog", &self.max_backlog)
+            .field("input_scratch_buf", &self.input_scratch_buf)
+            .field("input_resampled_buf", &self.input_resampled_buf)
+            .field("input_resampler", &self.input_resampler)
+            .field("encoder", &self.encoder)
+            .field("output_stream", &self.output_stream)
+            .field("output_scratch_buf", &self.output_scratch_buf)
+            .field("output_resampled_buf", &self.output_resampled_buf)
+            .field("output_resampler", &self.output_resampler)
+            .field("decoder", &self.decoder)
+            .finish()
     }
 }
 
