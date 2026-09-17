@@ -21,7 +21,7 @@ mod stream;
 pub mod error;
 pub mod stream_trait;
 
-pub const RINGBUF_SIZE: usize = 16 * 1024;
+pub const RINGBUF_SIZE: usize = 4 * 1024;
 
 pub struct AudioBridge {
     host: Host,
