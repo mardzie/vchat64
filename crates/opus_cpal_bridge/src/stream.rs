@@ -5,14 +5,15 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 
-use crate::{error::StreamBuildError, stream_trait::StreamControls};
+use crate::error::StreamBuildError;
 
+#[must_use]
 pub struct Stream {
     device: Device,
     device_type: DeviceType,
     config: SupportedStreamConfig,
     /// `stream` contains the [`Stream`] and the playing indicator.
-    inner: Option<(cpal::Stream, bool)>,
+    inner: Option<cpal::Stream>,
 }
 
 impl Stream {
@@ -39,6 +40,7 @@ impl Stream {
         })
     }
 
+    #[must_use]
     pub fn config(&self) -> SupportedStreamConfig {
         self.config
     }
@@ -73,6 +75,7 @@ impl Stream {
         }
     }
 
+    #[must_use]
     fn filter_config_48k(
         config_iter: impl IntoIterator<Item = cpal::SupportedStreamConfigRange>,
     ) -> Option<cpal::SupportedStreamConfig> {
@@ -103,9 +106,7 @@ impl Stream {
             error_callback,
             None,
         )?;
-        self.inner = Some((stream, false));
-
-        Ok(())
+        self.build_inner_stream(stream)
     }
 
     pub fn build_output_stream<T, D, E>(
@@ -124,37 +125,14 @@ impl Stream {
             error_callback,
             None,
         )?;
-        self.inner = Some((stream, false));
-
-        Ok(())
-    }
-}
-
-impl StreamControls for Stream {
-    fn play(&mut self) -> Result<(), crate::error::PlayPauseError> {
-        if let Some((stream, playing)) = &mut self.inner {
-            stream.play().map_err(crate::error::PlayPauseError::from)?;
-            *playing = true;
-        }
-
-        Ok(())
+        self.build_inner_stream(stream)
     }
 
-    fn pause(&mut self) -> Result<(), crate::error::PlayPauseError> {
-        if let Some((stream, playing)) = &mut self.inner {
-            stream.pause().map_err(crate::error::PlayPauseError::from)?;
-            *playing = false;
-        }
+    fn build_inner_stream(&mut self, stream: cpal::Stream) -> Result<(), StreamBuildError> {
+        stream.play()?;
+        self.inner = Some(stream);
 
         Ok(())
-    }
-
-    fn playing(&self) -> bool {
-        if let Some((_, playing)) = &self.inner {
-            *playing
-        } else {
-            false
-        }
     }
 }
 
@@ -168,6 +146,7 @@ impl Debug for Stream {
     }
 }
 
+#[must_use]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DeviceType {
     Input,
