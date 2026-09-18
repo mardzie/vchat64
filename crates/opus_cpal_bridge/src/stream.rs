@@ -1,7 +1,10 @@
-use std::fmt::{Debug, Display};
+use std::{
+    cmp::Reverse,
+    fmt::{Debug, Display},
+};
 
 use cpal::{
-    Device, SupportedStreamConfig,
+    Device, SAMPLE_RATE_48K, SampleFormat, SupportedStreamConfig,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 
@@ -53,14 +56,11 @@ impl Stream {
         device_type: DeviceType,
         device: &Device,
     ) -> Result<SupportedStreamConfig, cpal::Error> {
-        let config_48k = match device_type {
-            DeviceType::Input => Self::filter_config_48k(device.supported_input_configs()?),
-            DeviceType::Output => Self::filter_config_48k(device.supported_output_configs()?),
-        };
-        let config = match config_48k {
-            Some(config) => config,
-            None => Self::default_config(device_type, device)?,
-        };
+        let config = match device_type {
+            DeviceType::Input => Self::preferred_config_filter(device.supported_input_configs()?),
+            DeviceType::Output => Self::preferred_config_filter(device.supported_output_configs()?),
+        }
+        .unwrap_or(Self::default_config(device_type, device)?);
 
         Ok(config)
     }
@@ -76,17 +76,23 @@ impl Stream {
     }
 
     #[must_use]
-    fn filter_config_48k(
+    fn preferred_config_filter(
         config_iter: impl IntoIterator<Item = cpal::SupportedStreamConfigRange>,
     ) -> Option<cpal::SupportedStreamConfig> {
-        use cpal::{SAMPLE_RATE_48K, SampleFormat};
+        fn rank(r: &cpal::SupportedStreamConfigRange) -> impl Ord + use<> {
+            (
+                r.channels(),
+                Reverse(r.sample_format() == SampleFormat::F32),
+            )
+        }
 
         config_iter
             .into_iter()
             .filter(|r| matches!(r.sample_format(), SampleFormat::F32 | SampleFormat::I16))
-            .find(|r| {
+            .filter(|r| {
                 r.min_sample_rate() <= SAMPLE_RATE_48K && SAMPLE_RATE_48K <= r.max_sample_rate()
             })
+            .min_by_key(rank)
             .map(|r| r.with_sample_rate(SAMPLE_RATE_48K))
     }
 
