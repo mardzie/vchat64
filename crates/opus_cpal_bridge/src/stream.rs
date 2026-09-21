@@ -1,9 +1,11 @@
 use std::{
     fmt::{Debug, Display},
+    num::NonZero,
     ops::Deref,
     sync::Arc,
 };
 
+use cpal::ChannelCount;
 use ringbuf::{SharedRb, storage::Heap, traits::Split, wrap::caching::Caching};
 
 use crate::{
@@ -44,6 +46,12 @@ impl<D> Stream<D> {
     fn ringbuf_pair(ringbuf_size: usize) -> (Producer, Consumer) {
         ringbuf::SharedRb::new(ringbuf_size).split()
     }
+
+    fn channels(inner: &StreamInner<D>) -> NonZero<ChannelCount> {
+        let config = inner.config();
+        NonZero::new(config.channels())
+            .expect("CPAL reported an invalid zero-channel configuration")
+    }
 }
 
 impl Stream<Input> {
@@ -53,16 +61,18 @@ impl Stream<Input> {
     ) -> Result<(Self, <Input as BufferDirection>::Buffer), StreamBuildError> {
         let mut inner = StreamInner::<Input>::new(host)?;
         let (mut producer, consumer) = Self::ringbuf_pair(ringbuf_size);
-        let config = inner.config();
-        build_stream!(inner, audio_callback::input_audio_callback, (&mut producer, config.channels() as usize), {
+        let channels = Self::channels(&inner);
+        build_stream!(inner, audio_callback::input_audio_callback, (&mut producer, channels), {
             F32,
             F64,
             U8,
             U16,
+            U24,
             U32,
             U64,
             I8,
             I16,
+            I24,
             I32,
             I64
         });
@@ -78,15 +88,18 @@ impl Stream<Output> {
     ) -> Result<(Self, <Output as BufferDirection>::Buffer), StreamBuildError> {
         let mut inner = StreamInner::<Output>::new(host)?;
         let (producer, mut consumer) = Self::ringbuf_pair(ringbuf_size);
-        build_stream!(inner, audio_callback::output_audio_callback, (&mut consumer), {
+        let channels = Self::channels(&inner);
+        build_stream!(inner, audio_callback::output_audio_callback, (&mut consumer, channels), {
             F32,
             F64,
             U8,
             U16,
+            U24,
             U32,
             U64,
             I8,
             I16,
+            I24,
             I32,
             I64
         });
@@ -128,47 +141,60 @@ impl Display for DeviceType {
 }
 
 mod audio_callback {
-    use cpal::Sample;
+    use std::num::NonZero;
+
+    use cpal::{ChannelCount, Sample};
     use ringbuf::traits::{Consumer, Producer};
 
     pub fn input_audio_callback<T>(
         buf: &[T],
         _: &cpal::InputCallbackInfo,
         producer: &mut impl Producer<Item = f32>,
-        channels: usize,
+        channels: NonZero<ChannelCount>,
     ) where
         T: cpal::SizedSample,
         f32: cpal::FromSample<T>,
     {
         // cpal guarantees that each frame has all channels.
-        debug_assert_eq!(buf.len() % channels, 0);
+        debug_assert_eq!(buf.len() % channels.get() as usize, 0);
 
-        let inverse_channels = 1.0 / channels as f32;
+        let inverse_channels = 1.0 / channels.get() as f32;
 
         let mono_len = buf.len() / channels;
         let vacant_len = producer.vacant_len();
         let dropped = mono_len.saturating_sub(vacant_len);
         let buf_start = dropped * channels;
-        let mono = buf[buf_start..].chunks_exact(channels).map(|frame| {
-            // Average all channels into one mono frame per chunk.
-            frame.iter().map(|s| s.to_sample::<f32>()).sum::<f32>() * inverse_channels
-        });
+        let mono = buf[buf_start..]
+            .chunks_exact(channels.get() as usize)
+            .map(|frame| {
+                // Average all channels into one mono frame per chunk.
+                frame.iter().map(|s| s.to_sample::<f32>()).sum::<f32>() * inverse_channels
+            });
         let pushed = producer.push_iter(mono);
         let overrun = mono_len - pushed;
 
         debug_assert_eq!(overrun, dropped);
     }
 
-    // TODO: Fill remaining space when not filled fully with silence.
     pub fn output_audio_callback<T>(
         buf: &mut [T],
         _: &cpal::OutputCallbackInfo,
         consumer: &mut impl Consumer<Item = f32>,
+        channels: NonZero<ChannelCount>,
     ) where
         T: cpal::SizedSample + cpal::FromSample<f32>,
     {
-        for (sample, new_sample) in buf.iter_mut().zip(consumer.pop_iter()) {
-            *sample = new_sample.to_sample();
+        // cpal guarantees that each frame has all channels.
+        debug_assert_eq!(buf.len() % channels.get() as usize, 0);
+
+        // Silence buffer
+        buf.fill(T::EQUILIBRIUM);
+
+        for (frame, sample) in buf
+            .chunks_exact_mut(channels.get() as usize)
+            .zip(consumer.pop_iter())
+        {
+            frame.fill(sample.to_sample());
         }
     }
 }
