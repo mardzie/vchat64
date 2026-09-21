@@ -72,7 +72,7 @@ pub struct StreamInner<D> {
     _direction: PhantomData<D>,
 }
 
-impl<D> StreamInner<D> {
+impl<D: Direction> StreamInner<D> {
     pub fn new(host: &cpal::Host) -> Result<Self, StreamBuildError> {
         let device = D::default_device(host)
             .ok_or(StreamBuildError::DefaultDeviceUnavailable(D::DEVICE_TYPE))?;

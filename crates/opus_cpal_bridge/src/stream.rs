@@ -42,7 +42,7 @@ pub struct Stream<D> {
     inner: StreamInner<D>,
 }
 
-impl<D> Stream<D> {
+impl<D: Direction> Stream<D> {
     fn ringbuf_pair(ringbuf_size: usize) -> (Producer, Consumer) {
         ringbuf::SharedRb::new(ringbuf_size).split()
     }
@@ -74,7 +74,7 @@ impl Stream<Input> {
             I16,
             I24,
             I32,
-            I64
+            I64,
         });
 
         Ok((Self { inner }, consumer))
@@ -101,7 +101,7 @@ impl Stream<Output> {
             I16,
             I24,
             I32,
-            I64
+            I64,
         });
 
         Ok((Self { inner }, producer))
@@ -160,10 +160,10 @@ mod audio_callback {
 
         let inverse_channels = 1.0 / channels.get() as f32;
 
-        let mono_len = buf.len() / channels;
+        let mono_len = buf.len() / channels.get() as usize;
         let vacant_len = producer.vacant_len();
         let dropped = mono_len.saturating_sub(vacant_len);
-        let buf_start = dropped * channels;
+        let buf_start = dropped * channels.get() as usize;
         let mono = buf[buf_start..]
             .chunks_exact(channels.get() as usize)
             .map(|frame| {
