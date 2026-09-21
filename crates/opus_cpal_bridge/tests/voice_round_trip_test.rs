@@ -4,7 +4,7 @@ use opus_cpal_bridge::stream::{
 };
 use ringbuf::traits::{Consumer, Producer};
 
-const RINGBUF_SIZE: usize = 3 * 1024;
+const RINGBUF_SIZE: usize = 4 * 1024;
 
 #[test]
 fn voice_round_trip() {
@@ -20,6 +20,6 @@ fn voice_round_trip() {
     loop {
         let count = producer.push_iter(consumer.pop_iter());
         tracing::info!("Moved {} samples from Input to Output.", count);
-        std::thread::park_timeout(std::time::Duration::from_millis(18));
+        std::thread::park_timeout(std::time::Duration::from_millis(5));
     }
 }
