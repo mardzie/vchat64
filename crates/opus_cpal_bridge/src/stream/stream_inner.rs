@@ -138,7 +138,7 @@ impl<D: Direction> StreamInner<D> {
 }
 
 impl StreamInner<Input> {
-    pub fn build_stream<T, F, E>(
+    pub(crate) fn build_stream<T, F, E>(
         &mut self,
         data_callback: F,
         error_callback: E,
@@ -159,7 +159,7 @@ impl StreamInner<Input> {
 }
 
 impl StreamInner<Output> {
-    pub fn build_stream<T, F, E>(
+    pub(crate) fn build_stream<T, F, E>(
         &mut self,
         data_callback: F,
         error_callback: E,
