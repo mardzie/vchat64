@@ -121,7 +121,7 @@ impl<D: Direction> StreamInner<D> {
 
         config_iter
             .into_iter()
-            .filter(|r| matches!(r.sample_format(), SampleFormat::F32 | SampleFormat::I16))
+            .filter(|r| matches!(r.sample_format(), SampleFormat::F32))
             .filter(|r| {
                 r.min_sample_rate() <= SAMPLE_RATE_48K && SAMPLE_RATE_48K <= r.max_sample_rate()
             })
