@@ -101,8 +101,10 @@ impl<D: Direction> StreamInner<D> {
     }
 
     fn pick_config(device: &Device) -> Result<SupportedStreamConfig, cpal::Error> {
-        let config = Self::preferred_config_filter(D::supported_configs(device)?)
-            .unwrap_or(D::default_config(device)?);
+        let config = match Self::preferred_config_filter(D::supported_configs(device)?) {
+            Some(config) => config,
+            None => D::default_config(device)?,
+        };
         Ok(config)
     }
 
