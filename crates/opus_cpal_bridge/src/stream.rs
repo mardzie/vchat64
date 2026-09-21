@@ -177,6 +177,7 @@ mod audio_callback {
     }
 
     pub fn output_audio_callback<T>(
+        // Buffer already comes silenced from cpal. Just write in it.
         buf: &mut [T],
         _: &cpal::OutputCallbackInfo,
         consumer: &mut impl Consumer<Item = f32>,
@@ -186,9 +187,6 @@ mod audio_callback {
     {
         // cpal guarantees that each frame has all channels.
         debug_assert_eq!(buf.len() % channels.get() as usize, 0);
-
-        // Silence buffer
-        buf.fill(T::EQUILIBRIUM);
 
         for (frame, sample) in buf
             .chunks_exact_mut(channels.get() as usize)
