@@ -52,6 +52,25 @@ impl<D: Direction> Stream<D> {
         NonZero::new(config.channels())
             .expect("CPAL reported an invalid zero-channel configuration")
     }
+
+    /// Output warning if the provided buffer size is smaller than the recommended.
+    fn buffer_size(inner: &StreamInner<D>, ringbuf_size: usize) {
+        match inner.config().buffer_size() {
+            cpal::SupportedBufferSize::Range { min, max } => {
+                if ringbuf_size < *max as usize {
+                    tracing::warn!(
+                        "Provided cpal buffer size smaller than maximum possible buffer size: (current: {}; cpal min: {}; cpal max: {})",
+                        ringbuf_size,
+                        min,
+                        max
+                    );
+                }
+            }
+            cpal::SupportedBufferSize::Unknown => {
+                tracing::warn!("Min/Max cpal buffer size unknown!")
+            }
+        }
+    }
 }
 
 impl Stream<Input> {
@@ -60,6 +79,7 @@ impl Stream<Input> {
         ringbuf_size: usize,
     ) -> Result<(Self, <Input as BufferDirection>::Buffer), StreamBuildError> {
         let mut inner = StreamInner::<Input>::new(host)?;
+        Self::buffer_size(&inner, ringbuf_size);
         let (mut producer, consumer) = Self::ringbuf_pair(ringbuf_size);
         let channels = Self::channels(&inner);
         build_stream!(inner, audio_callback::input_audio_callback, (&mut producer, channels), {
@@ -87,6 +107,7 @@ impl Stream<Output> {
         ringbuf_size: usize,
     ) -> Result<(Self, <Output as BufferDirection>::Buffer), StreamBuildError> {
         let mut inner = StreamInner::<Output>::new(host)?;
+        Self::buffer_size(&inner, ringbuf_size);
         let (producer, mut consumer) = Self::ringbuf_pair(ringbuf_size);
         let channels = Self::channels(&inner);
         build_stream!(inner, audio_callback::output_audio_callback, (&mut consumer, channels), {
