@@ -1,154 +1,96 @@
-use std::{
-    cmp::Reverse,
-    fmt::{Debug, Display},
+use std::{fmt::Display, ops::Deref, sync::Arc};
+
+use ringbuf::{SharedRb, storage::Heap, traits::Split, wrap::caching::Caching};
+
+use crate::{
+    error::StreamBuildError,
+    macros::build_stream::build_stream,
+    stream::stream_inner::{Direction, Input, Output, StreamInner},
 };
 
-use cpal::{
-    Device, SAMPLE_RATE_48K, SampleFormat, SupportedStreamConfig,
-    traits::{DeviceTrait, HostTrait, StreamTrait},
-};
+pub mod stream_inner;
 
-use crate::error::StreamBuildError;
+type InnerRb = Arc<SharedRb<Heap<f32>>>;
+type Producer = Caching<InnerRb, true, false>;
+type Consumer = Caching<InnerRb, false, true>;
 
-#[must_use]
-pub struct Stream {
-    device: Device,
-    device_type: DeviceType,
-    config: SupportedStreamConfig,
-    /// `stream` contains the [`Stream`] and the playing indicator.
-    inner: Option<cpal::Stream>,
+trait BufferDirection {
+    type Buffer;
 }
 
-impl Stream {
-    pub fn new(device_type: DeviceType, host: &cpal::Host) -> Result<Self, StreamBuildError> {
-        let device = match device_type {
-            DeviceType::Input => host.default_input_device(),
-            DeviceType::Output => host.default_output_device(),
-        }
-        .ok_or(StreamBuildError::DefaultDeviceUnavailable(device_type))?;
-        Self::from_device(device_type, device)
-    }
+impl BufferDirection for Input {
+    type Buffer = Consumer;
+}
 
-    pub fn from_device(
-        device_type: DeviceType,
-        device: cpal::Device,
-    ) -> Result<Self, StreamBuildError> {
-        let config = Self::pick_config(device_type, &device)?;
+impl BufferDirection for Output {
+    type Buffer = Producer;
+}
+
+pub struct Stream<D: BufferDirection> {
+    inner: StreamInner<D>,
+    ring_buf: D::Buffer,
+}
+
+impl<D: Direction + BufferDirection> Stream<D> {
+    fn ringbuf_pair(ringbuf_size: usize) -> (Producer, Consumer) {
+        ringbuf::SharedRb::new(ringbuf_size).split()
+    }
+}
+
+impl Stream<Input> {
+    pub fn new(host: &cpal::Host, ringbuf_size: usize) -> Result<Self, StreamBuildError> {
+        let mut inner = StreamInner::<Input>::new(host)?;
+        let (mut producer, consumer) = Self::ringbuf_pair(ringbuf_size);
+        let config = inner.config();
+        build_stream!(inner, audio_callback::input_audio_callback, (&mut producer, config.channels() as usize), {
+            F32,
+            F64,
+            U8,
+            U16,
+            U32,
+            U64,
+            I8,
+            I16,
+            I32,
+            I64
+        });
 
         Ok(Self {
-            device,
-            device_type,
-            config,
-            inner: None,
+            inner,
+            ring_buf: consumer,
         })
-    }
-
-    #[must_use]
-    pub fn config(&self) -> SupportedStreamConfig {
-        self.config
-    }
-
-    pub fn device_type(&self) -> DeviceType {
-        self.device_type
-    }
-
-    fn pick_config(
-        device_type: DeviceType,
-        device: &Device,
-    ) -> Result<SupportedStreamConfig, cpal::Error> {
-        let config = match device_type {
-            DeviceType::Input => Self::preferred_config_filter(device.supported_input_configs()?),
-            DeviceType::Output => Self::preferred_config_filter(device.supported_output_configs()?),
-        }
-        .unwrap_or(Self::default_config(device_type, device)?);
-
-        Ok(config)
-    }
-
-    fn default_config(
-        device_type: DeviceType,
-        device: &Device,
-    ) -> Result<SupportedStreamConfig, cpal::Error> {
-        match device_type {
-            DeviceType::Input => device.default_input_config(),
-            DeviceType::Output => device.default_output_config(),
-        }
-    }
-
-    #[must_use]
-    fn preferred_config_filter(
-        config_iter: impl IntoIterator<Item = cpal::SupportedStreamConfigRange>,
-    ) -> Option<cpal::SupportedStreamConfig> {
-        fn rank(r: &cpal::SupportedStreamConfigRange) -> impl Ord + use<> {
-            (
-                r.channels(),
-                Reverse(r.sample_format() == SampleFormat::F32),
-            )
-        }
-
-        config_iter
-            .into_iter()
-            .filter(|r| matches!(r.sample_format(), SampleFormat::F32 | SampleFormat::I16))
-            .filter(|r| {
-                r.min_sample_rate() <= SAMPLE_RATE_48K && SAMPLE_RATE_48K <= r.max_sample_rate()
-            })
-            .min_by_key(rank)
-            .map(|r| r.with_sample_rate(SAMPLE_RATE_48K))
-    }
-
-    pub fn build_input_stream<T, D, E>(
-        &mut self,
-        data_callback: D,
-        error_callback: E,
-    ) -> Result<(), StreamBuildError>
-    where
-        T: cpal::SizedSample,
-        D: FnMut(&[T], &cpal::InputCallbackInfo) + Send + 'static,
-        E: FnMut(cpal::Error) + Send + 'static,
-    {
-        let stream = self.device.build_input_stream(
-            self.config.config(),
-            data_callback,
-            error_callback,
-            None,
-        )?;
-        self.build_inner_stream(stream)
-    }
-
-    pub fn build_output_stream<T, D, E>(
-        &mut self,
-        data_callback: D,
-        error_callback: E,
-    ) -> Result<(), StreamBuildError>
-    where
-        T: cpal::SizedSample,
-        D: FnMut(&mut [T], &cpal::OutputCallbackInfo) + Send + 'static,
-        E: FnMut(cpal::Error) + Send + 'static,
-    {
-        let stream = self.device.build_output_stream(
-            self.config.config(),
-            data_callback,
-            error_callback,
-            None,
-        )?;
-        self.build_inner_stream(stream)
-    }
-
-    fn build_inner_stream(&mut self, stream: cpal::Stream) -> Result<(), StreamBuildError> {
-        stream.play()?;
-        self.inner = Some(stream);
-
-        Ok(())
     }
 }
 
-impl Debug for Stream {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Stream")
-            .field("device", &self.device)
-            .field("device_type", &self.device_type)
-            .field("config", &self.config)
-            .finish()
+impl Stream<Output> {
+    pub fn new(host: &cpal::Host, ringbuf_size: usize) -> Result<Self, StreamBuildError> {
+        let mut inner = StreamInner::<Output>::new(host)?;
+        let (producer, mut consumer) = Self::ringbuf_pair(ringbuf_size);
+        build_stream!(inner, audio_callback::output_audio_callback, (&mut consumer), {
+            F32,
+            F64,
+            U8,
+            U16,
+            U32,
+            U64,
+            I8,
+            I16,
+            I32,
+            I64
+        });
+
+        Ok(Self {
+            inner,
+            ring_buf: producer,
+        })
+    }
+}
+
+impl<D: Direction + BufferDirection> Deref for Stream<D> {
+    type Target = StreamInner<D>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 
@@ -164,6 +106,52 @@ impl Display for DeviceType {
         match self {
             DeviceType::Input => write!(f, "input"),
             DeviceType::Output => write!(f, "output"),
+        }
+    }
+}
+
+mod audio_callback {
+    use cpal::Sample;
+    use ringbuf::traits::{Consumer, Producer};
+
+    pub fn input_audio_callback<T>(
+        buf: &[T],
+        _: &cpal::InputCallbackInfo,
+        producer: &mut impl Producer<Item = f32>,
+        channels: usize,
+    ) where
+        T: cpal::SizedSample,
+        f32: cpal::FromSample<T>,
+    {
+        // cpal guarantees that each frame has all channels.
+        debug_assert_eq!(buf.len() % channels, 0);
+
+        let inverse_channels = 1.0 / channels as f32;
+
+        let mono_len = buf.len() / channels;
+        let vacant_len = producer.vacant_len();
+        let dropped = mono_len.saturating_sub(vacant_len);
+        let buf_start = dropped * channels;
+        let mono = buf[buf_start..].chunks_exact(channels).map(|frame| {
+            // Average all channels into one mono frame per chunk.
+            frame.iter().map(|s| s.to_sample::<f32>()).sum::<f32>() * inverse_channels
+        });
+        let pushed = producer.push_iter(mono);
+        let overrun = mono_len - pushed;
+
+        debug_assert_eq!(overrun, dropped);
+    }
+
+    // TODO: Fill remaining space when not filled fully with silence.
+    pub fn output_audio_callback<T>(
+        buf: &mut [T],
+        _: &cpal::OutputCallbackInfo,
+        consumer: &mut impl Consumer<Item = f32>,
+    ) where
+        T: cpal::SizedSample + cpal::FromSample<f32>,
+    {
+        for (sample, new_sample) in buf.iter_mut().zip(consumer.pop_iter()) {
+            *sample = new_sample.to_sample();
         }
     }
 }

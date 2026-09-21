@@ -1,54 +1,29 @@
-macro_rules! build_input_stream {
+macro_rules! build_stream {
     (
-        $input:expr,
+        $inner:expr,
         $callback:path,
         $args:tt,
         { $($variant:ident),+ $(,)? }
     ) => {
-        match $input.config().sample_format() {
+        match $inner.config().sample_format() {
             $(
-            ::cpal::SampleFormat::$variant => $input
-                .build_input_stream(
-                    move |buf: &[$crate::macros::build_stream::cpal_sample_format_type!($variant)], info| {
+            ::cpal::SampleFormat::$variant => $inner
+                .build_stream::<$crate::macros::build_stream::cpal_sample_format_type!($variant), _, _>(
+                    move |buf, info| {
                         $crate::macros::build_stream::call_with!($callback, buf, info, $args)
                     },
                     move |e| ::tracing::error!(
-                        concat!("Input Stream Error ", stringify!($ty), ": {}"), e
+                        concat!("Stream Error ", stringify!($ty), ": {}"),
+                        e
                     )
                 )
-                .expect(concat!("Failed to create new ", stringify!($ty), " input stream.")),
+                .expect(concat!("Failed to create new ", stringify!($ty), " stream.")),
             )+
-            format => panic!("Unsupported input sample format `SampleFormat::{}`!", format),
+            format => panic!("Unsupported sample format `SampleFormat::{}`!", format),
         }
     };
 }
-pub(crate) use build_input_stream;
-
-macro_rules! build_output_stream {
-    (
-        $output:expr,
-        $callback:path,
-        $args:tt,
-        { $($variant:ident),+ $(,)? }
-    ) => {
-        match $output.config().sample_format() {
-            $(
-            ::cpal::SampleFormat::$variant => $output
-                .build_output_stream(
-                    move |buf: &mut [$crate::macros::build_stream::cpal_sample_format_type!($variant)], info| {
-                        $crate::macros::build_stream::call_with!($callback, buf, info, $args)
-                    },
-                    move |e| ::tracing::error!(
-                        concat!("Output Stream Error ", stringify!($ty), ": {}"), e
-                    )
-                )
-                .expect(concat!("Failed to create new ", stringify!($ty), " output stream.")),
-            )+
-            format => panic!("Unsupported output sample format `SampleFormat::{}`!", format),
-        }
-    };
-}
-pub(crate) use build_output_stream;
+pub(crate) use build_stream;
 
 macro_rules! call_with {
     ($callback:path, $buf:expr, $info:expr, ($($arg:expr),* $(,)?)) => {
@@ -71,7 +46,7 @@ macro_rules! cpal_sample_format_type {
         u16
     };
     (U24) => {
-        u32
+        ::cpal::U24
     };
     (U32) => {
         u32
@@ -86,7 +61,7 @@ macro_rules! cpal_sample_format_type {
         i16
     };
     (I24) => {
-        i32
+        ::cpal::I24
     };
     (I32) => {
         i32
