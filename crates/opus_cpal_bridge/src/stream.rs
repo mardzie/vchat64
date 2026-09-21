@@ -1,4 +1,8 @@
-use std::{fmt::Display, ops::Deref, sync::Arc};
+use std::{
+    fmt::{Debug, Display},
+    ops::Deref,
+    sync::Arc,
+};
 
 use ringbuf::{SharedRb, storage::Heap, traits::Split, wrap::caching::Caching};
 
@@ -14,17 +18,23 @@ type InnerRb = Arc<SharedRb<Heap<f32>>>;
 type Producer = Caching<InnerRb, true, false>;
 type Consumer = Caching<InnerRb, false, true>;
 
-trait BufferDirection {
+mod sealed {
+    pub trait Sealed {}
+}
+
+pub trait BufferDirection: sealed::Sealed {
     type Buffer;
 }
 
 impl BufferDirection for Input {
     type Buffer = Consumer;
 }
+impl sealed::Sealed for Input {}
 
 impl BufferDirection for Output {
     type Buffer = Producer;
 }
+impl sealed::Sealed for Output {}
 
 pub struct Stream<D> {
     inner: StreamInner<D>,
