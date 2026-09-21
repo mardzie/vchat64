@@ -10,3 +10,6 @@ ringbuf.workspace = true
 rubato = "5.0.0"
 thiserror.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tracing-subscriber.workspace = true
