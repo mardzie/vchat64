@@ -81,6 +81,7 @@ impl<D: Direction> StreamInner<D> {
 
     pub fn from_device(device: cpal::Device) -> Result<Self, StreamBuildError> {
         let config = Self::pick_config(&device)?;
+        tracing::debug!("Stream config: {:?}", config);
 
         Ok(Self {
             device,
