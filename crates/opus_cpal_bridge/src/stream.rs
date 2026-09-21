@@ -26,19 +26,21 @@ impl BufferDirection for Output {
     type Buffer = Producer;
 }
 
-pub struct Stream<D: BufferDirection> {
+pub struct Stream<D> {
     inner: StreamInner<D>,
-    ring_buf: D::Buffer,
 }
 
-impl<D: Direction + BufferDirection> Stream<D> {
+impl<D> Stream<D> {
     fn ringbuf_pair(ringbuf_size: usize) -> (Producer, Consumer) {
         ringbuf::SharedRb::new(ringbuf_size).split()
     }
 }
 
 impl Stream<Input> {
-    pub fn new(host: &cpal::Host, ringbuf_size: usize) -> Result<Self, StreamBuildError> {
+    pub fn new(
+        host: &cpal::Host,
+        ringbuf_size: usize,
+    ) -> Result<(Self, <Input as BufferDirection>::Buffer), StreamBuildError> {
         let mut inner = StreamInner::<Input>::new(host)?;
         let (mut producer, consumer) = Self::ringbuf_pair(ringbuf_size);
         let config = inner.config();
@@ -55,15 +57,15 @@ impl Stream<Input> {
             I64
         });
 
-        Ok(Self {
-            inner,
-            ring_buf: consumer,
-        })
+        Ok((Self { inner }, consumer))
     }
 }
 
 impl Stream<Output> {
-    pub fn new(host: &cpal::Host, ringbuf_size: usize) -> Result<Self, StreamBuildError> {
+    pub fn new(
+        host: &cpal::Host,
+        ringbuf_size: usize,
+    ) -> Result<(Self, <Output as BufferDirection>::Buffer), StreamBuildError> {
         let mut inner = StreamInner::<Output>::new(host)?;
         let (producer, mut consumer) = Self::ringbuf_pair(ringbuf_size);
         build_stream!(inner, audio_callback::output_audio_callback, (&mut consumer), {
@@ -79,10 +81,7 @@ impl Stream<Output> {
             I64
         });
 
-        Ok(Self {
-            inner,
-            ring_buf: producer,
-        })
+        Ok((Self { inner }, producer))
     }
 }
 
