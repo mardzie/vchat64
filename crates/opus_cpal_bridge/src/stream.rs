@@ -86,7 +86,7 @@ impl Stream<Output> {
     }
 }
 
-impl<D: Direction + BufferDirection> Deref for Stream<D> {
+impl<D> Deref for Stream<D> {
     type Target = StreamInner<D>;
 
     fn deref(&self) -> &Self::Target {
