@@ -277,21 +277,25 @@ mod audio_callback {
         // cpal guarantees that each frame has all channels.
         debug_assert_eq!(buf.len() % channels.get() as usize, 0);
 
-        let inverse_channels = 1.0 / channels.get() as f32;
+        let channels = channels.get() as usize;
+        let inverse_channels = 1.0 / channels as f32;
 
-        let mono_len = buf.len() / channels.get() as usize;
+        let mono_len = buf.len() / channels;
         let vacant_len = producer.vacant_len();
+        // Drop the oldest samples.
         let dropped = mono_len.saturating_sub(vacant_len);
-        let buf_start = dropped * channels.get() as usize;
-        let mono = buf[buf_start..]
-            .chunks_exact(channels.get() as usize)
-            .map(|frame| {
-                // Average all channels into one mono frame per chunk.
-                frame.iter().map(|s| s.to_sample::<f32>()).sum::<f32>() * inverse_channels
-            });
+        let buf_start = dropped * channels;
+        let mono = buf[buf_start..].chunks_exact(channels).map(|frame| {
+            // Average all channels into one mono frame per chunk.
+            frame.iter().map(|s| s.to_sample::<f32>()).sum::<f32>() * inverse_channels
+        });
         let pushed = producer.push_iter(mono);
-        let overrun = mono_len - pushed;
+        let overrun = mono_len.saturating_sub(pushed);
 
+        // The overrun are samples that could not be written to the producer.
+        // The space of the producer should never decrease without writing to it.
+        // The oldest samples that dont fit get dropped first.
+        // If then the overrun isnt the same as the dropped then the producer had not as much space as advertised.
         debug_assert_eq!(overrun, dropped);
     }
 
