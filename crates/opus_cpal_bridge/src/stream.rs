@@ -198,7 +198,7 @@ mod audio_callback {
     }
 
     pub fn output_audio_callback<T>(
-        // Buffer already comes silenced from cpal. Just write in it.
+        // Buffer already comes silenced from cpal >= 0.18. Just write in it.
         buf: &mut [T],
         _: &cpal::OutputCallbackInfo,
         consumer: &mut impl Consumer<Item = f32>,
