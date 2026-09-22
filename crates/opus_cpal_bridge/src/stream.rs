@@ -1,146 +1,211 @@
 use std::{
     fmt::{Debug, Display},
+    marker::PhantomData,
     num::NonZero,
-    ops::Deref,
-    sync::Arc,
 };
 
-use cpal::ChannelCount;
-use ringbuf::{SharedRb, storage::Heap, traits::Split, wrap::caching::Caching};
-
-use crate::{
-    error::StreamBuildError,
-    macros::build_stream::build_stream,
-    stream::stream_inner::{Direction, Input, Output, StreamInner},
+use cpal::{
+    ChannelCount, Device, SAMPLE_RATE_48K, SampleFormat, SupportedStreamConfig,
+    traits::{DeviceTrait, HostTrait, StreamTrait},
 };
+use ringbuf::{HeapCons, HeapProd, HeapRb, traits::Split};
 
-pub mod stream_inner;
-
-type InnerRb = Arc<SharedRb<Heap<f32>>>;
-type Producer = Caching<InnerRb, true, false>;
-type Consumer = Caching<InnerRb, false, true>;
+use crate::{error::StreamBuildError, macros::build_stream::build_stream};
 
 mod sealed {
     pub trait Sealed {}
 }
 
-pub trait BufferDirection: sealed::Sealed {
-    type Buffer;
+pub trait Direction: sealed::Sealed + 'static {
+    const DEVICE_TYPE: DeviceType;
+
+    type SupportedConfigs: Iterator<Item = cpal::SupportedStreamConfigRange>;
+    /// Ring half returned to the caller: HeapCons<f32> for Input, HeapProd<f32> for Output.
+    type Handle;
+
+    fn default_device(host: &cpal::Host) -> Option<Device>;
+    fn supported_configs(device: &Device) -> Result<Self::SupportedConfigs, cpal::Error>;
+    fn default_config(device: &Device) -> Result<cpal::SupportedStreamConfig, cpal::Error>;
+    fn build(
+        device: &Device,
+        config: SupportedStreamConfig,
+        rb: HeapRb<f32>,
+    ) -> Result<(cpal::Stream, Self::Handle), StreamBuildError>;
 }
 
-impl BufferDirection for Input {
-    type Buffer = Consumer;
-}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Input;
 impl sealed::Sealed for Input {}
+impl Direction for Input {
+    const DEVICE_TYPE: DeviceType = DeviceType::Input;
 
-impl BufferDirection for Output {
-    type Buffer = Producer;
+    type SupportedConfigs = cpal::SupportedInputConfigs;
+    type Handle = HeapCons<f32>;
+
+    fn default_device(host: &cpal::Host) -> Option<Device> {
+        host.default_input_device()
+    }
+
+    fn supported_configs(device: &Device) -> Result<Self::SupportedConfigs, cpal::Error> {
+        device.supported_input_configs()
+    }
+
+    fn default_config(device: &Device) -> Result<cpal::SupportedStreamConfig, cpal::Error> {
+        device.default_input_config()
+    }
+
+    fn build(
+        device: &Device,
+        config: SupportedStreamConfig,
+        rb: HeapRb<f32>,
+    ) -> Result<(cpal::Stream, Self::Handle), StreamBuildError> {
+        let (mut producer, consumer) = rb.split();
+        let channels = non_zero_channels(&config);
+        let stream = build_stream!(
+            device,
+            build_input_stream,
+            &config,
+            audio_callback::input_audio_callback,
+            (&mut producer, channels),
+            {
+                F32,
+                F64,
+                U8,
+                U16,
+                U24,
+                U32,
+                U64,
+                I8,
+                I16,
+                I24,
+                I32,
+                I64,
+            }
+        )?;
+        Ok((stream, consumer))
+    }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Output;
 impl sealed::Sealed for Output {}
+impl Direction for Output {
+    const DEVICE_TYPE: DeviceType = DeviceType::Output;
+
+    type SupportedConfigs = cpal::SupportedOutputConfigs;
+    type Handle = HeapProd<f32>;
+
+    fn default_device(host: &cpal::Host) -> Option<Device> {
+        host.default_output_device()
+    }
+
+    fn supported_configs(device: &Device) -> Result<Self::SupportedConfigs, cpal::Error> {
+        device.supported_output_configs()
+    }
+
+    fn default_config(device: &Device) -> Result<cpal::SupportedStreamConfig, cpal::Error> {
+        device.default_output_config()
+    }
+
+    fn build(
+        device: &Device,
+        config: SupportedStreamConfig,
+        rb: HeapRb<f32>,
+    ) -> Result<(cpal::Stream, Self::Handle), StreamBuildError> {
+        let (producer, mut consumer) = rb.split();
+        let channels = non_zero_channels(&config);
+        let stream = build_stream!(
+            device,
+            build_output_stream,
+            &config,
+            audio_callback::output_audio_callback,
+            (&mut consumer, channels),
+            {
+                F32,
+                F64,
+                U8,
+                U16,
+                U24,
+                U32,
+                U64,
+                I8,
+                I16,
+                I24,
+                I32,
+                I64,
+            }
+        )?;
+        Ok((stream, producer))
+    }
+}
 
 pub struct Stream<D> {
-    inner: StreamInner<D>,
+    device: Device,
+    config: SupportedStreamConfig,
+    /// Held for its `Drop`. Dropping stops the callback.
+    stream: cpal::Stream,
+    _direction: PhantomData<D>,
 }
 
 impl<D: Direction> Stream<D> {
-    fn ringbuf_pair(ringbuf_size: usize) -> (Producer, Consumer) {
-        ringbuf::SharedRb::new(ringbuf_size).split()
+    pub fn new(host: &cpal::Host, capacity: usize) -> Result<(Self, D::Handle), StreamBuildError> {
+        let device = D::default_device(host)
+            .ok_or(StreamBuildError::DefaultDeviceUnavailable(D::DEVICE_TYPE))?;
+        Self::from_device(device, capacity)
     }
 
-    fn channels(inner: &StreamInner<D>) -> NonZero<ChannelCount> {
-        let config = inner.config();
-        NonZero::new(config.channels())
-            .expect("CPAL reported an invalid zero-channel configuration")
+    pub fn from_device(
+        device: Device,
+        capacity: usize,
+    ) -> Result<(Self, D::Handle), StreamBuildError> {
+        let config = pick_config::<D>(&device)?;
+        tracing::debug!("{} Stream config: {:?}", D::DEVICE_TYPE, config);
+
+        let (stream, handle) = D::build(&device, config, HeapRb::new(capacity))?;
+        let this = Self {
+            device,
+            config,
+            stream,
+            _direction: PhantomData,
+        };
+        this.buffer_size(capacity);
+        this.stream.play()?;
+
+        Ok((this, handle))
+    }
+
+    pub fn config(&self) -> SupportedStreamConfig {
+        self.config
+    }
+
+    pub fn device_type(&self) -> DeviceType {
+        D::DEVICE_TYPE
     }
 
     /// Output warning if the provided buffer size is smaller than the recommended.
-    fn buffer_size(inner: &StreamInner<D>, ringbuf_size: usize) {
-        match inner.config().buffer_size() {
-            cpal::SupportedBufferSize::Range { min, max } => {
-                if ringbuf_size < *max as usize {
+    fn buffer_size(&self, capacity: usize) {
+        match self.stream.buffer_size() {
+            Ok(size) => {
+                if capacity < 2 * size as usize {
                     tracing::warn!(
-                        "Provided cpal buffer size smaller than maximum possible buffer size: (current: {}; cpal min: {}; cpal max: {})",
-                        ringbuf_size,
-                        min,
-                        max
+                        "Provided ring buffer size is smaller than double the estimated buffer size: (current: {}; 2x estimate: {})",
+                        capacity,
+                        2 * size
                     );
                 }
             }
-            cpal::SupportedBufferSize::Unknown => {
-                tracing::warn!("Min/Max cpal buffer size unknown!")
+            Err(e) => {
+                tracing::warn!("Failed to get buffer size estimate for ring buffer: {}", e)
             }
         }
-    }
-}
-
-impl Stream<Input> {
-    pub fn new(
-        host: &cpal::Host,
-        ringbuf_size: usize,
-    ) -> Result<(Self, <Input as BufferDirection>::Buffer), StreamBuildError> {
-        let mut inner = StreamInner::<Input>::new(host)?;
-        Self::buffer_size(&inner, ringbuf_size);
-        let (mut producer, consumer) = Self::ringbuf_pair(ringbuf_size);
-        let channels = Self::channels(&inner);
-        build_stream!(inner, audio_callback::input_audio_callback, (&mut producer, channels), {
-            F32,
-            F64,
-            U8,
-            U16,
-            U24,
-            U32,
-            U64,
-            I8,
-            I16,
-            I24,
-            I32,
-            I64,
-        });
-
-        Ok((Self { inner }, consumer))
-    }
-}
-
-impl Stream<Output> {
-    pub fn new(
-        host: &cpal::Host,
-        ringbuf_size: usize,
-    ) -> Result<(Self, <Output as BufferDirection>::Buffer), StreamBuildError> {
-        let mut inner = StreamInner::<Output>::new(host)?;
-        Self::buffer_size(&inner, ringbuf_size);
-        let (producer, mut consumer) = Self::ringbuf_pair(ringbuf_size);
-        let channels = Self::channels(&inner);
-        build_stream!(inner, audio_callback::output_audio_callback, (&mut consumer, channels), {
-            F32,
-            F64,
-            U8,
-            U16,
-            U24,
-            U32,
-            U64,
-            I8,
-            I16,
-            I24,
-            I32,
-            I64,
-        });
-
-        Ok((Self { inner }, producer))
-    }
-}
-
-impl<D> Deref for Stream<D> {
-    type Target = StreamInner<D>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
     }
 }
 
 impl<D: Direction> Debug for Stream<D> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Stream")
-            .field("inner", &self.inner)
+            .field("device", &self.device)
+            .field("config", &self.config)
             .finish_non_exhaustive()
     }
 }
@@ -155,22 +220,48 @@ pub enum DeviceType {
 impl Display for DeviceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DeviceType::Input => write!(f, "input"),
-            DeviceType::Output => write!(f, "output"),
+            DeviceType::Input => write!(f, "Input"),
+            DeviceType::Output => write!(f, "Output"),
         }
     }
+}
+
+fn pick_config<D: Direction>(device: &Device) -> Result<SupportedStreamConfig, cpal::Error> {
+    let config = match preferred_config_filter(D::supported_configs(device)?) {
+        Some(config) => config,
+        None => D::default_config(device)?,
+    };
+    Ok(config)
+}
+
+#[must_use]
+fn preferred_config_filter(
+    config_iter: impl IntoIterator<Item = cpal::SupportedStreamConfigRange>,
+) -> Option<cpal::SupportedStreamConfig> {
+    config_iter
+        .into_iter()
+        .filter(|r| matches!(r.sample_format(), SampleFormat::F32))
+        .filter_map(|r| r.try_with_sample_rate(SAMPLE_RATE_48K))
+        .min_by_key(|r| r.channels())
+}
+
+fn non_zero_channels(config: &cpal::SupportedStreamConfig) -> NonZero<ChannelCount> {
+    NonZero::new(config.channels()).expect("CPAL reported an invalid zero-channel configuration")
 }
 
 mod audio_callback {
     use std::num::NonZero;
 
     use cpal::{ChannelCount, Sample};
-    use ringbuf::traits::{Consumer, Producer};
+    use ringbuf::{
+        HeapCons, HeapProd,
+        traits::{Consumer, Observer, Producer},
+    };
 
     pub fn input_audio_callback<T>(
         buf: &[T],
         _: &cpal::InputCallbackInfo,
-        producer: &mut impl Producer<Item = f32>,
+        producer: &mut HeapProd<f32>,
         channels: NonZero<ChannelCount>,
     ) where
         T: cpal::SizedSample,
@@ -201,7 +292,7 @@ mod audio_callback {
         // Buffer already comes silenced from cpal >= 0.18. Just write in it.
         buf: &mut [T],
         _: &cpal::OutputCallbackInfo,
-        consumer: &mut impl Consumer<Item = f32>,
+        consumer: &mut HeapCons<f32>,
         channels: NonZero<ChannelCount>,
     ) where
         T: cpal::SizedSample + cpal::FromSample<f32>,

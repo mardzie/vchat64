@@ -1,27 +1,34 @@
 macro_rules! build_stream {
     (
-        $inner:expr,
+        $device:expr,
+        $build:ident,
+        $config:expr,
         $callback:path,
         $args:tt,
         { $($variant:ident),+ $(,)? }
-    ) => {
-        match $inner.config().sample_format() {
+    ) => {{
+        let device: &::cpal::Device = $device;
+        let config: &::cpal::SupportedStreamConfig = $config;
+        match config.sample_format() {
             $(
-            ::cpal::SampleFormat::$variant => $inner
-                .build_stream::<$crate::macros::build_stream::cpal_sample_format_type!($variant), _, _>(
-                    move |buf, info| {
-                        $crate::macros::build_stream::call_with!($callback, buf, info, $args)
-                    },
-                    move |e| ::tracing::error!(
-                        concat!("Stream Error ", stringify!($ty), ": {}"),
-                        e
-                    )
-                )
-                .expect(concat!("Failed to create new ", stringify!($ty), " stream.")),
+            ::cpal::SampleFormat::$variant => ::cpal::traits::DeviceTrait::$build::<
+                $crate::macros::build_stream::cpal_sample_format_type!($variant),
+                _,
+                _,
+            >(
+                device,
+                config.config(),
+                move |buf, info| {
+                    $crate::macros::build_stream::call_with!($callback, buf, info, $args)
+                },
+                |e| ::tracing::error!("{} stream error: {}", stringify!($variant), e),
+                None,
+            )
+            .map_err($crate::error::StreamBuildError::from),
             )+
-            format => panic!("Unsupported sample format `SampleFormat::{}`!", format),
+            format => panic!("Unsupported sample format `SampleFormat::{}`!", format)
         }
-    };
+    }};
 }
 pub(crate) use build_stream;
 
