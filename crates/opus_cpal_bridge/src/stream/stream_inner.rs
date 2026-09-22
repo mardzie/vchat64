@@ -113,21 +113,11 @@ impl<D: Direction> StreamInner<D> {
     fn preferred_config_filter(
         config_iter: impl IntoIterator<Item = cpal::SupportedStreamConfigRange>,
     ) -> Option<cpal::SupportedStreamConfig> {
-        fn rank(r: &cpal::SupportedStreamConfigRange) -> impl Ord + use<> {
-            (
-                r.channels(),
-                Reverse(r.sample_format() == SampleFormat::F32),
-            )
-        }
-
         config_iter
             .into_iter()
             .filter(|r| matches!(r.sample_format(), SampleFormat::F32))
-            .filter(|r| {
-                r.min_sample_rate() <= SAMPLE_RATE_48K && SAMPLE_RATE_48K <= r.max_sample_rate()
-            })
-            .min_by_key(rank)
-            .map(|r| r.with_sample_rate(SAMPLE_RATE_48K))
+            .filter_map(|r| r.try_with_sample_rate(SAMPLE_RATE_48K))
+            .min_by_key(|r| r.channels())
     }
 
     fn build_inner_stream(&mut self, stream: cpal::Stream) -> Result<(), StreamBuildError> {
