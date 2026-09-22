@@ -8,7 +8,7 @@ macro_rules! build_stream {
         { $($variant:ident),+ $(,)? }
     ) => {{
         let device: &::cpal::Device = $device;
-        let config: &::cpal::SupportedStreamConfig = $config;
+        let config: &::cpal::SupportedStreamConfig = &$config;
         match config.sample_format() {
             $(
             ::cpal::SampleFormat::$variant => ::cpal::traits::DeviceTrait::$build::<

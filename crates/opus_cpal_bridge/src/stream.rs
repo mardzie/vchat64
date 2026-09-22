@@ -64,7 +64,7 @@ impl Direction for Input {
         let stream = build_stream!(
             device,
             build_input_stream,
-            &config,
+            config,
             audio_callback::input_audio_callback,
             (&mut producer, channels),
             {
@@ -117,7 +117,7 @@ impl Direction for Output {
         let stream = build_stream!(
             device,
             build_output_stream,
-            &config,
+            config,
             audio_callback::output_audio_callback,
             (&mut consumer, channels),
             {
