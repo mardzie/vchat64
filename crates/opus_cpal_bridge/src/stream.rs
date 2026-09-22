@@ -311,10 +311,11 @@ mod audio_callback {
         // cpal guarantees that each frame has all channels.
         debug_assert_eq!(buf.len() % channels.get() as usize, 0);
 
-        for (frame, sample) in buf
-            .chunks_exact_mut(channels.get() as usize)
-            .zip(consumer.pop_iter())
-        {
+        for (frame, sample) in buf.chunks_exact_mut(channels.get() as usize).zip(
+            consumer
+                .pop_iter()
+                .map(|raw_sample| raw_sample.clamp(-1.0, 1.0 - f32::EPSILON / 2.0)),
+        ) {
             frame.fill(sample.to_sample());
         }
     }
