@@ -224,6 +224,18 @@ pub enum DeviceType {
     Output,
 }
 
+impl From<Input> for DeviceType {
+    fn from(_: Input) -> Self {
+        Self::Input
+    }
+}
+
+impl From<Output> for DeviceType {
+    fn from(_: Output) -> Self {
+        Self::Output
+    }
+}
+
 impl Display for DeviceType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
