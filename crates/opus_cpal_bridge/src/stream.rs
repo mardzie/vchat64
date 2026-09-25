@@ -16,6 +16,7 @@ mod sealed {
     pub trait Sealed {}
 }
 
+/// The Direction of a [`Stream<D>`].
 pub trait Direction: sealed::Sealed + 'static {
     const DEVICE_TYPE: DeviceType;
 
@@ -33,6 +34,7 @@ pub trait Direction: sealed::Sealed + 'static {
     ) -> Result<(cpal::Stream, Self::Handle), StreamBuildError>;
 }
 
+/// Input device type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Input;
 impl sealed::Sealed for Input {}
@@ -86,6 +88,7 @@ impl Direction for Input {
     }
 }
 
+/// Output device type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Output;
 impl sealed::Sealed for Output {}
@@ -139,6 +142,27 @@ impl Direction for Output {
     }
 }
 
+/// A cpal Stream wrapper.
+///
+/// Works with mono `f32` (-1.0 <= s < 1.0) audio samples.
+///
+/// The Stream will play as soon as it is constructed.
+///
+/// # [`Input`]
+/// A `Stream<Input>` collects samples from the input device into the ring.
+/// The ring needs to be emptied regularly.
+/// If the ring is at capacity, new samples from the output device will be dropped.
+/// Only the freshest samples will be written into the ring if the rings free space is insufficient.
+/// Older samples will be dropped.
+/// The devices [`SampleFormat`] will be converted to `f32`.
+/// All channels will be averaged to mono audio.
+///
+/// # [`Output`]
+/// A `Stream<Output>` writes samples from the ring into the output devices buffer.
+/// The ring needs to be filled regularly.
+/// If there aren't enough samples in the ring to satisfy the output devices buffer, the audio wont behave as expected.
+/// The `f32` samples from the ring will be converted to the devices [`SampleFormat`].
+/// The ring samples will be written to all channels.
 pub struct Stream<D> {
     device: Device,
     config: SupportedStreamConfig,
@@ -148,12 +172,14 @@ pub struct Stream<D> {
 }
 
 impl<D: Direction> Stream<D> {
+    /// New default device from `host` and a ring buffer capacity of `capacity`.
     pub fn new(host: &cpal::Host, capacity: usize) -> Result<(Self, D::Handle), StreamBuildError> {
         let device = D::default_device(host)
             .ok_or(StreamBuildError::DefaultDeviceUnavailable(D::DEVICE_TYPE))?;
         Self::from_device(device, capacity)
     }
 
+    /// From a device with a ring buffer capacity of `capacity`.
     pub fn from_device(
         device: Device,
         capacity: usize,
@@ -174,10 +200,12 @@ impl<D: Direction> Stream<D> {
         Ok((this, handle))
     }
 
+    /// The configuration of the underlying cpal stream.
     pub fn config(&self) -> SupportedStreamConfig {
         self.config
     }
 
+    /// The [`DeviceType`].
     pub fn device_type(&self) -> DeviceType {
         D::DEVICE_TYPE
     }
