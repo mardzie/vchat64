@@ -1,7 +1,4 @@
-use opus_cpal_bridge::stream::{
-    Stream,
-    stream_inner::{Input, Output},
-};
+use opus_cpal_bridge::stream::{Input, Output, Stream};
 use ringbuf::traits::{Consumer, Producer};
 
 const RINGBUF_SIZE: usize = 4 * 1024;
