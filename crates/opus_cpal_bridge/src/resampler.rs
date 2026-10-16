@@ -65,8 +65,12 @@ impl ResamplerInner {
     pub fn input_frames_next(&self) -> usize {
         match self {
             ResamplerInner::Native => FRAME,
-            ResamplerInner::Convert(resampler) => resampler.input_frames_next(),
+            ResamplerInner::Convert(resampler) => Self::input_frames_next_inner(resampler),
         }
+    }
+
+    fn input_frames_next_inner(resampler: &Fft<f32>) -> usize {
+        resampler.input_frames_next()
     }
 
     /// Get the number of output frames per channel for the next call to `resample()`
@@ -74,8 +78,12 @@ impl ResamplerInner {
     pub fn output_frames_next(&self) -> usize {
         match self {
             ResamplerInner::Native => FRAME,
-            ResamplerInner::Convert(resampler) => resampler.output_frames_next(),
+            ResamplerInner::Convert(resampler) => Self::output_frames_next_inner(resampler),
         }
+    }
+
+    fn output_frames_next_inner(resampler: &Fft<f32>) -> usize {
+        resampler.output_frames_next()
     }
 
     /// The input buffer size for the next call must be queried with `input_frames_next()` because it can change with each call to `resample()`.
@@ -89,8 +97,6 @@ impl ResamplerInner {
         input_buf: &[f32],
         output_buf: &mut [f32],
     ) -> Result<(usize, usize), rubato::ResampleError> {
-        let input_frames_next = self.input_frames_next();
-        let output_frames_next = self.output_frames_next();
         match self {
             ResamplerInner::Native => {
                 debug_assert!(
@@ -109,14 +115,14 @@ impl ResamplerInner {
             }
             ResamplerInner::Convert(resampler) => {
                 debug_assert!(
-                    input_buf.len() >= input_frames_next,
+                    input_buf.len() >= Self::input_frames_next_inner(resampler),
                     "Input buffer needs to be at least {} long",
-                    input_frames_next
+                    Self::input_frames_next_inner(resampler)
                 );
                 debug_assert!(
-                    output_buf.len() >= output_frames_next,
+                    output_buf.len() >= Self::output_frames_next_inner(resampler),
                     "Output buffer needs to be at least {} long",
-                    output_frames_next
+                    Self::output_frames_next_inner(resampler)
                 );
 
                 let input_adapter = SequentialSlice::new(input_buf, 1, input_buf.len())
