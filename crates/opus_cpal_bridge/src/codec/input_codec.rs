@@ -24,6 +24,7 @@ impl InputCodec {
     }
 
     /// Encode an Opus frame from floating point input.
+    #[inline]
     pub fn encode(&mut self, samples: &[f32], packet: &mut [u8]) {
         let len = self
             .encoder

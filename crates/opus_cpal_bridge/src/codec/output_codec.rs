@@ -18,6 +18,7 @@ impl OutputCodec {
     /// To represent packet loss, pass an empty slice &[].
     ///
     /// The return value is the number of samples per channel decoded from the packet.
+    #[inline]
     pub fn decode(&mut self, packet: &[u8], samples: &mut [f32]) {
         self.decoder
             .decode_float(packet, samples, true)

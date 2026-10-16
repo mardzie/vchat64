@@ -81,6 +81,7 @@ impl ResamplerInner {
     /// The slices may be greater than the requested size but only the requested frames will be processed.
     ///
     /// Returns the number of frames consumed and produced as a tuple `(consumed, produced)`.
+    #[inline]
     pub fn resample(
         &mut self,
         input_buf: &[f32],
