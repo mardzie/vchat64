@@ -1,7 +1,6 @@
-use cpal::SAMPLE_RATE_48K;
 use rubato::{Fft, Resampler as _, audioadapter_buffers::direct::SequentialSlice};
 
-use crate::{FRAME, stream::DeviceType};
+use crate::{FRAME, SAMPLE_RATE_48K, stream::DeviceType};
 
 #[derive(Debug)]
 pub enum ResamplerInner {

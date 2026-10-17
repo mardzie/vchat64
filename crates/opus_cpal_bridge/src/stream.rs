@@ -5,12 +5,12 @@ use std::{
 };
 
 use cpal::{
-    ChannelCount, Device, SAMPLE_RATE_48K, SampleFormat, SupportedStreamConfig,
+    ChannelCount, Device, SampleFormat, SupportedStreamConfig,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use ringbuf::{HeapCons, HeapProd, HeapRb, traits::Split};
 
-use crate::{FRAME, error::StreamBuildError, macros::build_stream::build_stream};
+use crate::{FRAME, SAMPLE_RATE_48K, error::StreamBuildError, macros::build_stream::build_stream};
 
 mod sealed {
     pub trait Sealed {}
