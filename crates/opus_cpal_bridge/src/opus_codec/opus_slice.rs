@@ -2,7 +2,7 @@
 pub struct OpusSlice<'a>(&'a [u8]);
 
 impl<'a> OpusSlice<'a> {
-    pub fn new(s: &'a [u8]) -> Result<Self, Error> {
+    pub fn new(s: &'a [u8], sample_rate: u32) -> Result<Self, Error> {
         if !s.is_empty() {
             if s.len() % 120 == 0 {
                 Ok(Self(s))
@@ -16,14 +16,6 @@ impl<'a> OpusSlice<'a> {
 
     pub fn get(&self) -> &'a [u8] {
         self.0
-    }
-}
-
-impl<'a> TryFrom<&'a [u8]> for OpusSlice<'a> {
-    type Error = Error;
-
-    fn try_from(s: &'a [u8]) -> Result<Self, Self::Error> {
-        Self::new(s)
     }
 }
 

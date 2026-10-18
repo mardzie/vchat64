@@ -1,15 +1,17 @@
-use crate::{SAMPLE_RATE_48K, codec::opus_slice::OpusSlice};
+use crate::opus_codec::{frame_duration::FrameSize, opus_slice::OpusSlice};
 
 #[derive(Debug)]
 pub struct Decoder {
     decoder: opus::Decoder,
+    sample_rate: u32,
 }
 
 impl Decoder {
-    pub fn new() -> Result<Self, opus::Error> {
-        let decoder = opus::Decoder::new(SAMPLE_RATE_48K, opus::Channels::Mono)?;
-
-        Ok(Self { decoder })
+    pub fn new(sample_rate: u32, frame_duration: FrameSize) -> Result<Self, opus::Error> {
+        Ok(Self {
+            decoder: opus::Decoder::new(sample_rate, opus::Channels::Mono)?,
+            sample_rate,
+        })
     }
 
     /// Decode an Opus packet with floating point output.
@@ -29,7 +31,7 @@ impl Decoder {
     }
 
     pub fn set_gain(&mut self, gain: i32) -> Result<(), opus::Error> {
-        self.decoder.set_gain(gain.clamp(-32768, 32768))
+        self.decoder.set_gain(gain)
     }
 }
 
