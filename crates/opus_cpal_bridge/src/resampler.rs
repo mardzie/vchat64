@@ -68,8 +68,8 @@ impl ResamplerInner {
     }
 
     /// Get the number of input frames per channel for the next call to `resample()`.
-    #[inline]
     #[must_use]
+    #[inline]
     pub fn input_frames_next(&self) -> usize {
         match self {
             ResamplerInner::Native => FRAME,
@@ -77,13 +77,14 @@ impl ResamplerInner {
         }
     }
 
+    #[must_use]
     fn input_frames_next_inner(resampler: &Fft<f32>) -> usize {
         resampler.input_frames_next()
     }
 
     /// Get the number of output frames per channel for the next call to `resample()`
-    #[inline]
     #[must_use]
+    #[inline]
     pub fn output_frames_next(&self) -> usize {
         match self {
             ResamplerInner::Native => FRAME,
@@ -91,6 +92,7 @@ impl ResamplerInner {
         }
     }
 
+    #[must_use]
     fn output_frames_next_inner(resampler: &Fft<f32>) -> usize {
         resampler.output_frames_next()
     }
