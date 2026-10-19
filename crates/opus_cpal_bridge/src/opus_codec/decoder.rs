@@ -1,16 +1,19 @@
-use crate::opus_codec::{frame_size::FrameSize, opus_slice::OpusSlice};
+use crate::opus_codec::{OPUS_DEFAULT_SAMPLE_RATE, error::OpusCodeError, frame_size::FrameSize};
 
 #[derive(Debug)]
 pub struct Decoder {
     decoder: opus::Decoder,
-    sample_rate: u32,
+    frame_size: FrameSize,
 }
 
 impl Decoder {
-    pub fn new(sample_rate: u32, frame_duration: FrameSize) -> Result<Self, opus::Error> {
+    /// Constructs a new `Decoder`.
+    ///
+    /// `frame_size` must be the same as in the `Encoder`.
+    pub fn new(frame_size: FrameSize) -> Result<Self, opus::Error> {
         Ok(Self {
-            decoder: opus::Decoder::new(sample_rate, opus::Channels::Mono)?,
-            sample_rate,
+            decoder: opus::Decoder::new(OPUS_DEFAULT_SAMPLE_RATE, opus::Channels::Mono)?,
+            frame_size,
         })
     }
 
@@ -20,28 +23,64 @@ impl Decoder {
     ///
     /// The return value is the number of samples per channel decoded from the packet.
     #[inline]
-    pub fn decode(&mut self, input: DecodeInput, output: &mut [f32]) -> Result<usize, opus::Error> {
-        let (packet, fec): (&[u8], bool) = match input {
-            DecodeInput::Packet(slice) => (slice.get(), false),
-            DecodeInput::Fec { next } => (next.get(), true),
-            DecodeInput::Plc => (&[] as &[u8], false),
-        };
-
-        self.decoder.decode_float(packet, output, fec)
+    pub fn decode(
+        &mut self,
+        input: DecodeInput,
+        output: &mut [f32],
+    ) -> Result<usize, OpusCodeError> {
+        if output.len() == self.output_sample_len() {
+            let (packet, fec): (&[u8], bool) = match input {
+                DecodeInput::Packet(slice) => {
+                    if slice.is_empty() {
+                        return Err(OpusCodeError::EmptyInput);
+                    }
+                    (slice, false)
+                }
+                DecodeInput::Fec { next } => {
+                    if next.is_empty() {
+                        return Err(OpusCodeError::EmptyInput);
+                    }
+                    (next, true)
+                }
+                DecodeInput::Plc => (&[] as &[u8], false),
+            };
+            let nb_samples = self.decoder.get_nb_samples(packet)?;
+            if packet.len() % nb_samples != 0 {
+                return Err(OpusCodeError::InvalidInputSize {
+                    current: packet.len(),
+                    needed: nb_samples,
+                });
+            }
+            Ok(self.decoder.decode_float(packet, output, fec)?)
+        } else {
+            Err(OpusCodeError::InvalidOutputSize {
+                current: output.len(),
+                needed: self.output_sample_len(),
+            })
+        }
     }
 
-    pub fn set_gain(&mut self, gain: i32) -> Result<(), opus::Error> {
-        self.decoder.set_gain(gain)
+    /// Get the per channel output sample count.
+    #[must_use]
+    #[inline]
+    pub fn output_sample_len(&self) -> usize {
+        self.frame_size.samples(OPUS_DEFAULT_SAMPLE_RATE)
+    }
+
+    #[inline]
+    pub fn reset_state(&mut self) -> Result<(), opus::Error> {
+        self.decoder.reset_state()
     }
 }
 
 /// Input for one playout slot.
+#[must_use]
 #[derive(Debug)]
 pub enum DecodeInput<'a> {
     /// The slot's own packet arrived.
     ///
     /// -> `decode_float(pkt, &mut out[..FRAME], false)`
-    Packet(OpusSlice<'a>),
+    Packet(&'a [u8]),
 
     /// The slot is lost but the next packet arrived: decode the copy embedded in it.
     /// (Don't forget to call again with `DecodeInput::Packet(next)` or else next isn't being decoded.)
@@ -49,7 +88,7 @@ pub enum DecodeInput<'a> {
     /// -> `decode_float(next, &mut out[..FRAME], true)`
     ///
     /// (FEC = Forward Error Correction)
-    Fec { next: OpusSlice<'a> },
+    Fec { next: &'a [u8] },
 
     /// The slot and the next packet are both missing.
     ///

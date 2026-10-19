@@ -1,39 +1,68 @@
 use opus::Bitrate;
 
 use crate::opus_codec::{
-    OPUS_DEFAULT_BITRATE, OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE, frame_size::FrameSize,
+    OPUS_DEFAULT_BITRATE, OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE, OPUS_DEFAULT_SAMPLE_RATE,
+    error::OpusCodeError, frame_size::FrameSize,
 };
 
 #[derive(Debug)]
 pub struct Encoder {
     #[allow(clippy::struct_field_names)]
     encoder: opus::Encoder,
-    sample_rate: u32,
     bitrate: u32,
+    frame_size: FrameSize,
 }
 
 impl Encoder {
-    pub fn new(sample_rate: u32, frame_duration: FrameSize) -> Result<Self, opus::Error> {
-        let mut encoder =
-            opus::Encoder::new(sample_rate, opus::Channels::Mono, opus::Application::Voip)?;
-        encoder.set_bitrate(Bitrate::Bits(OPUS_DEFAULT_BITRATE as i32))?;
+    /// Constructs a new `Encoder`.
+    ///
+    /// `frame_size` must be the same as in the `Decoder`.
+    pub fn new(frame_size: FrameSize) -> Result<Self, opus::Error> {
+        let mut encoder = opus::Encoder::new(
+            OPUS_DEFAULT_SAMPLE_RATE,
+            opus::Channels::Mono,
+            frame_size.application(),
+        )?;
         // Variable bitrate must be `false`.
         // VBR leaks encrypted speech through packet sizes.
+        // DTX must be off too or it can leak information through encryption.
         encoder.set_vbr(false)?;
-        encoder.set_inband_fec(true)?;
+        encoder.set_inband_fec(frame_size.fec())?;
         encoder.set_packet_loss_perc(i32::from(OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE))?;
 
-        Ok(Self {
+        let mut this = Self {
             encoder,
-            sample_rate,
             bitrate: OPUS_DEFAULT_BITRATE,
-        })
+            frame_size,
+        };
+        this.set_bitrate(OPUS_DEFAULT_BITRATE)?;
+
+        Ok(this)
     }
 
     /// Encode an Opus frame from floating point input.
     #[inline]
-    pub fn encode(&mut self, samples: &[f32], packet: &mut [u8]) -> Result<usize, opus::Error> {
-        self.encoder.encode_float(samples, packet)
+    pub fn encode(&mut self, samples: &[f32], packet: &mut [u8]) -> Result<usize, OpusCodeError> {
+        if samples.len() != self.input_sample_len() {
+            return Err(OpusCodeError::InvalidInputSize {
+                current: samples.len(),
+                needed: self.input_sample_len(),
+            });
+        }
+        Ok(self.encoder.encode_float(samples, packet)?)
+    }
+
+    /// Get the per channel input sample count.
+    #[must_use]
+    #[inline]
+    pub fn input_sample_len(&self) -> usize {
+        self.frame_size.samples(OPUS_DEFAULT_SAMPLE_RATE)
+    }
+
+    /// Forward Error Correction requested.
+    #[inline]
+    pub fn fec(&self) -> bool {
+        self.frame_size.fec()
     }
 
     /// Sets the encoder’s expected packet loss percentage.
@@ -46,16 +75,23 @@ impl Encoder {
     /// Set the encoder's bitrate.
     #[inline]
     pub fn set_bitrate(&mut self, bitrate: u32) -> Result<(), opus::Error> {
-        self.encoder.set_bitrate(Bitrate::Bits(bitrate as i32))?;
         // Min/max come from `OPUS_SET_BITRATE_REQUEST` in
         // https://gitlab.xiph.org/xiph/opus/-/raw/1632152b83b8ab4e28393bca94450796b71b0201/src/opus_encoder.c
-        self.bitrate = bitrate.clamp(500, 300_000);
+        let clamped_bitrate = bitrate.clamp(500, 300_000);
+        self.encoder
+            .set_bitrate(Bitrate::Bits(clamped_bitrate as i32))?;
+        self.bitrate = clamped_bitrate;
         Ok(())
     }
 
-    #[inline]
     #[must_use]
-    pub fn get_bitrate(&self) -> u32 {
+    #[inline]
+    pub fn bitrate(&self) -> u32 {
         self.bitrate
+    }
+
+    #[inline]
+    pub fn reset_state(&mut self) -> Result<(), opus::Error> {
+        self.encoder.reset_state()
     }
 }
