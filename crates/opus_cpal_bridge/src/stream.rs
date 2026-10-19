@@ -304,6 +304,13 @@ fn non_zero_channels(config: &cpal::SupportedStreamConfig) -> NonZero<ChannelCou
     NonZero::new(config.channels()).expect("CPAL reported an invalid zero-channel configuration")
 }
 
+/// Clamps a `f32` sample to `-1.0 <= sample < 1.0`.
+#[must_use = "function returns a new number and does not mutate the original value"]
+#[inline]
+pub const fn clamp_f32_sample(sample: f32) -> f32 {
+    sample.clamp(-1.0, 1.0 - f32::EPSILON / 2.0)
+}
+
 mod audio_callback {
     use std::num::NonZero;
 
@@ -312,6 +319,8 @@ mod audio_callback {
         HeapCons, HeapProd,
         traits::{Consumer, Observer, Producer},
     };
+
+    use crate::stream::clamp_f32_sample;
 
     pub fn input_audio_callback<T>(
         buf: &[T],
@@ -359,11 +368,10 @@ mod audio_callback {
         // cpal guarantees that each frame has all channels.
         debug_assert_eq!(buf.len() % channels.get() as usize, 0);
 
-        for (frame, sample) in buf.chunks_exact_mut(channels.get() as usize).zip(
-            consumer
-                .pop_iter()
-                .map(|raw_sample| raw_sample.clamp(-1.0, 1.0 - f32::EPSILON / 2.0)),
-        ) {
+        for (frame, sample) in buf
+            .chunks_exact_mut(channels.get() as usize)
+            .zip(consumer.pop_iter().map(clamp_f32_sample))
+        {
             frame.fill(sample.to_sample());
         }
     }
