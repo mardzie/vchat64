@@ -15,9 +15,12 @@ pub enum FrameSize {
 }
 
 impl FrameSize {
+    /// 2.5 ms in 1000 ms (1000 / 2.5)
+    const MIN_FRAME_SIZE_IN_SECOND: u32 = (1000.0 / 2.5) as u32;
+
     #[must_use]
     pub const fn samples(self, sample_rate: u32) -> usize {
-        (sample_rate / 400) as usize * self as usize
+        (sample_rate / Self::MIN_FRAME_SIZE_IN_SECOND) as usize * self as usize
     }
 
     #[must_use]
@@ -30,6 +33,7 @@ impl FrameSize {
     }
 
     /// `a / b` rounded to nearest, ties up. Requires `b > 0`
+    #[must_use]
     const fn div_round(a: i64, b: i64) -> i64 {
         debug_assert!(b > 0, "`div_round(a, b)` requires `b > 0`");
         (a + b / 2) / b
