@@ -3,7 +3,7 @@ use rubato::{Fft, Resampler as _, audioadapter_buffers::direct::SequentialSlice}
 use crate::{FRAME, SAMPLE_RATE_48K, stream::DeviceType};
 
 /// Resampler
-/// 
+///
 /// The resampler is stateful.
 /// One per sample stream.
 #[derive(Debug)]
