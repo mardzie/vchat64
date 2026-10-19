@@ -2,7 +2,7 @@ pub use opus::{Error, ErrorCode};
 
 pub mod decoder;
 pub mod encoder;
-pub mod frame_duration;
+pub mod frame_size;
 pub mod opus_slice;
 
 const OPUS_DEFAULT_BITRATE: u32 = 24_000;

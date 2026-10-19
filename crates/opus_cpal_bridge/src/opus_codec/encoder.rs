@@ -1,7 +1,7 @@
 use opus::Bitrate;
 
 use crate::opus_codec::{
-    OPUS_DEFAULT_BITRATE, OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE, frame_duration::FrameSize,
+    OPUS_DEFAULT_BITRATE, OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE, frame_size::FrameSize,
 };
 
 #[derive(Debug)]

@@ -1,4 +1,4 @@
-use crate::opus_codec::{frame_duration::FrameSize, opus_slice::OpusSlice};
+use crate::opus_codec::{frame_size::FrameSize, opus_slice::OpusSlice};
 
 #[derive(Debug)]
 pub struct Decoder {
