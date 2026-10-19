@@ -21,7 +21,7 @@ pub trait Direction: sealed::Sealed + 'static {
     const DEVICE_TYPE: DeviceType;
 
     type SupportedConfigs: Iterator<Item = cpal::SupportedStreamConfigRange>;
-    /// Ring half returned to the caller: HeapCons<f32> for Input, HeapProd<f32> for Output.
+    /// Ring half returned to the caller: `HeapCons<f32>` for Input, `HeapProd<f32>` for Output.
     type Handle;
 
     fn default_device(host: &cpal::Host) -> Option<Device>;
@@ -167,12 +167,17 @@ pub struct Stream<D> {
     device: Device,
     config: SupportedStreamConfig,
     /// Held for its `Drop`. Dropping stops the callback.
+    #[allow(clippy::struct_field_names)]
     stream: cpal::Stream,
     _direction: PhantomData<D>,
 }
 
 impl<D: Direction> Stream<D> {
     /// New default device from `host` and a ring buffer capacity of `capacity`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(StreamBuildError::DefaultDeviceUnavailable)`
     pub fn new(host: &cpal::Host, capacity: usize) -> Result<(Self, D::Handle), StreamBuildError> {
         let device = D::default_device(host)
             .ok_or(StreamBuildError::DefaultDeviceUnavailable(D::DEVICE_TYPE))?;
@@ -180,6 +185,10 @@ impl<D: Direction> Stream<D> {
     }
 
     /// From a device with a ring buffer capacity of `capacity`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(StreamBuildError::DefaultDeviceUnavailable)`
     pub fn from_device(
         device: Device,
         capacity: usize,
@@ -201,6 +210,7 @@ impl<D: Direction> Stream<D> {
     }
 
     /// The configuration of the underlying cpal stream.
+    #[must_use]
     pub fn config(&self) -> SupportedStreamConfig {
         self.config
     }
@@ -212,12 +222,10 @@ impl<D: Direction> Stream<D> {
 
     /// Output warning if the provided buffer size is smaller than the recommended.
     fn warn_if_ring_undersized(&self, capacity: usize) {
-        if capacity < FRAME {
-            panic!(
-                "`capacity({})` can not be smaller than FRAME: {}",
-                capacity, FRAME
-            )
-        };
+        assert!(
+            capacity >= FRAME,
+            "`capacity({capacity})` can not be smaller than FRAME: {FRAME}"
+        );
 
         match self.stream.buffer_size() {
             Ok(size) => {
@@ -230,7 +238,7 @@ impl<D: Direction> Stream<D> {
                 }
             }
             Err(e) => {
-                tracing::warn!("Failed to get buffer size estimate for ring buffer: {}", e)
+                tracing::warn!("Failed to get buffer size estimate for ring buffer: {}", e);
             }
         }
     }
@@ -289,7 +297,7 @@ fn preferred_config_filter(
         .into_iter()
         .filter(|r| matches!(r.sample_format(), SampleFormat::F32))
         .filter_map(|r| r.try_with_sample_rate(SAMPLE_RATE_48K))
-        .min_by_key(|r| r.channels())
+        .min_by_key(cpal::SupportedStreamConfig::channels)
 }
 
 fn non_zero_channels(config: &cpal::SupportedStreamConfig) -> NonZero<ChannelCount> {

@@ -2,6 +2,10 @@ use rubato::{Fft, Resampler as _, audioadapter_buffers::direct::SequentialSlice}
 
 use crate::{FRAME, SAMPLE_RATE_48K, stream::DeviceType};
 
+/// Resampler
+/// 
+/// The resampler is stateful.
+/// One per sample stream.
 #[derive(Debug)]
 pub enum ResamplerInner {
     Native,
@@ -9,6 +13,7 @@ pub enum ResamplerInner {
 }
 
 impl ResamplerInner {
+    #[must_use]
     pub fn new(device_type: DeviceType, config: cpal::SupportedStreamConfig) -> Self {
         let sample_rate_input: usize;
         let sample_rate_output: usize;
@@ -21,11 +26,12 @@ impl ResamplerInner {
                 sample_rate_input = SAMPLE_RATE_48K as usize;
                 sample_rate_output = config.sample_rate() as usize;
             }
-        };
+        }
 
         Self::from_sample_rates(sample_rate_input, sample_rate_output)
     }
 
+    #[must_use]
     pub fn from_sample_rates(sample_rate_input: usize, sample_rate_output: usize) -> Self {
         if sample_rate_input == sample_rate_output {
             Self::Native
@@ -44,6 +50,7 @@ impl ResamplerInner {
     }
 
     /// The maximum input buffer size.
+    #[must_use]
     pub fn max_input(&self) -> usize {
         match self {
             ResamplerInner::Native => FRAME,
@@ -52,6 +59,7 @@ impl ResamplerInner {
     }
 
     /// The maximum output buffer size.
+    #[must_use]
     pub fn max_output(&self) -> usize {
         match self {
             ResamplerInner::Native => FRAME,
@@ -61,6 +69,7 @@ impl ResamplerInner {
 
     /// Get the number of input frames per channel for the next call to `resample()`.
     #[inline]
+    #[must_use]
     pub fn input_frames_next(&self) -> usize {
         match self {
             ResamplerInner::Native => FRAME,
@@ -74,6 +83,7 @@ impl ResamplerInner {
 
     /// Get the number of output frames per channel for the next call to `resample()`
     #[inline]
+    #[must_use]
     pub fn output_frames_next(&self) -> usize {
         match self {
             ResamplerInner::Native => FRAME,
@@ -100,13 +110,11 @@ impl ResamplerInner {
             ResamplerInner::Native => {
                 debug_assert!(
                     input_buf.len() >= FRAME,
-                    "Input buffer needs to be at least {} long",
-                    FRAME
+                    "Input buffer needs to be at least {FRAME} long",
                 );
                 debug_assert!(
                     output_buf.len() >= FRAME,
-                    "Output buffer needs to be at least {} long",
-                    FRAME
+                    "Output buffer needs to be at least {FRAME} long"
                 );
 
                 output_buf[..FRAME].copy_from_slice(&input_buf[..FRAME]);

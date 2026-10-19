@@ -6,6 +6,7 @@ use crate::opus_codec::{
 
 #[derive(Debug)]
 pub struct Encoder {
+    #[allow(clippy::struct_field_names)]
     encoder: opus::Encoder,
     sample_rate: u32,
     bitrate: u32,
@@ -20,7 +21,7 @@ impl Encoder {
         // VBR leaks encrypted speech through packet sizes.
         encoder.set_vbr(false)?;
         encoder.set_inband_fec(true)?;
-        encoder.set_packet_loss_perc(OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE as i32)?;
+        encoder.set_packet_loss_perc(i32::from(OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE))?;
 
         Ok(Self {
             encoder,
@@ -39,7 +40,7 @@ impl Encoder {
     #[inline]
     pub fn set_packet_loss_percentage(&mut self, value: u8) -> Result<(), opus::Error> {
         debug_assert!(value <= 100);
-        self.encoder.set_packet_loss_perc(value as i32)
+        self.encoder.set_packet_loss_perc(i32::from(value))
     }
 
     /// Set the encoder's bitrate.
@@ -53,6 +54,7 @@ impl Encoder {
     }
 
     #[inline]
+    #[must_use]
     pub fn get_bitrate(&self) -> u32 {
         self.bitrate
     }

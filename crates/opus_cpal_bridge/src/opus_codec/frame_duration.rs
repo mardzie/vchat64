@@ -15,10 +15,12 @@ pub enum FrameSize {
 }
 
 impl FrameSize {
+    #[must_use]
     pub const fn samples(self, sample_rate: u32) -> usize {
         (sample_rate / 400) as usize * self as usize
     }
 
+    #[must_use]
     pub const fn cbr_packet_len(self, sample_rate: u32, bitrate: u32) -> usize {
         let samples = self.samples(sample_rate) as i64;
         Self::div_round(
@@ -34,6 +36,7 @@ impl FrameSize {
     }
 
     /// Can support FEC.
+    #[must_use]
     pub const fn fec(self) -> bool {
         match self {
             Self::Ms2_5 | Self::Ms5 => false,
