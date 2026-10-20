@@ -24,7 +24,11 @@ impl Resampler {
         config: cpal::SupportedStreamConfig,
         frame_size: FrameSize,
     ) -> Self {
-        let inner = ResamplerInner::new(device_type, config);
+        let inner = ResamplerInner::new(
+            device_type,
+            config,
+            frame_size.samples(SAMPLE_RATE_48K) as u32,
+        );
         Self { inner, frame_size }
     }
 
@@ -56,8 +60,13 @@ impl Resampler {
         self.inner.output_frames_next(self.frame_at_48k())
     }
 
-    /// The input buffer size for the next call must be queried with `input_frames_next()` because it can change with each call to `resample()`.
-    /// The output buffer size is fixed and can be queried with `output_frames_next()`.
+    /// One side is always a fixed length.
+    ///
+    /// `DeviceType::Input` -> Output is a fixed size, Input dynamic.
+    ///
+    /// `DeviceType::Output` -> Input is a fixed size, Output dynamic.
+    ///
+    /// The dynamic side has to be queried with `input_frames_next()` or `output_frames_next()`.
     /// The slices may be greater than the requested size but only the requested frames will be processed.
     ///
     /// Returns the number of frames consumed and produced as a tuple `(consumed, produced)`.
@@ -84,7 +93,11 @@ enum ResamplerInner {
 
 impl ResamplerInner {
     #[must_use]
-    pub fn new(device_type: DeviceType, config: cpal::SupportedStreamConfig) -> Self {
+    pub fn new(
+        device_type: DeviceType,
+        config: cpal::SupportedStreamConfig,
+        chunk_size: u32,
+    ) -> Self {
         let sample_rate_input: usize;
         let sample_rate_output: usize;
         match device_type {
@@ -99,14 +112,16 @@ impl ResamplerInner {
         }
 
         Self::from_sample_rates(
+            device_type,
             sample_rate_input,
             sample_rate_output,
-            FrameSize::Ms20.samples(SAMPLE_RATE_48K) as u32,
+            chunk_size,
         )
     }
 
     #[must_use]
     pub fn from_sample_rates(
+        device_type: DeviceType,
         sample_rate_input: usize,
         sample_rate_output: usize,
         chunk_size: u32,
@@ -124,7 +139,7 @@ impl ResamplerInner {
                     sample_rate_output,
                     chunk_size as usize,
                     1,
-                    rubato::FixedSync::Output,
+                    device_type.direction(),
                 )
                 .expect("Failed to create resampler"),
             )
@@ -220,6 +235,18 @@ impl ResamplerInner {
 
                 Ok((consumed, produced))
             }
+        }
+    }
+}
+
+trait ResampleDirection {
+    fn direction(self) -> rubato::FixedSync;
+}
+impl ResampleDirection for DeviceType {
+    fn direction(self) -> rubato::FixedSync {
+        match self {
+            Self::Input => rubato::FixedSync::Output,
+            Self::Output => rubato::FixedSync::Input,
         }
     }
 }
