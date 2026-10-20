@@ -10,9 +10,7 @@ use cpal::{
 };
 use ringbuf::{HeapCons, HeapProd, HeapRb, traits::Split};
 
-use crate::{
-    FRAME_SIZE, SAMPLE_RATE_48K, error::StreamBuildError, macros::build_stream::build_stream,
-};
+use crate::{SAMPLE_RATE_48K, error::StreamBuildError, macros::build_stream::build_stream};
 
 mod sealed {
     pub trait Sealed {}
@@ -233,7 +231,6 @@ impl<D: Direction> Stream<D> {
             stream,
             _direction: PhantomData,
         };
-        this.warn_if_ring_undersized(capacity);
         this.stream.play()?;
 
         Ok((this, handle))
@@ -248,30 +245,6 @@ impl<D: Direction> Stream<D> {
     /// The [`DeviceType`].
     pub fn device_type(&self) -> DeviceType {
         D::DEVICE_TYPE
-    }
-
-    /// Output warning if the provided buffer size is smaller than the recommended.
-    fn warn_if_ring_undersized(&self, capacity: usize) {
-        assert!(
-            capacity >= FRAME_SIZE.samples(SAMPLE_RATE_48K),
-            "`capacity({capacity})` can not be smaller than FRAME: {}",
-            FRAME_SIZE.samples(SAMPLE_RATE_48K)
-        );
-
-        match self.stream.buffer_size() {
-            Ok(size) => {
-                if capacity < 2 * size as usize {
-                    tracing::warn!(
-                        "Provided ring buffer size is smaller than double the estimated buffer size: (current: {}; 2x estimate: {})",
-                        capacity,
-                        2 * size
-                    );
-                }
-            }
-            Err(e) => {
-                tracing::warn!("Failed to get buffer size estimate for ring buffer: {}", e);
-            }
-        }
     }
 }
 
