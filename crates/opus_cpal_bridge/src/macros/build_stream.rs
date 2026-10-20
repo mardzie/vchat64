@@ -76,14 +76,5 @@ macro_rules! cpal_sample_format_type {
     (I64) => {
         i64
     };
-    (DsdU8) => {
-        u8
-    };
-    (DsdU16) => {
-        u16
-    };
-    (DsdU32) => {
-        u32
-    };
 }
 pub(crate) use cpal_sample_format_type;
