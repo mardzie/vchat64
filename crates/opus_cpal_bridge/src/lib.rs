@@ -2,6 +2,8 @@
 
 pub use opus::Bitrate;
 
+use crate::opus_codec::frame_size::FrameSize;
+
 mod macros;
 
 pub mod error;
@@ -14,10 +16,7 @@ const _: () = assert!(
     cpal::SAMPLE_RATE_48K == SAMPLE_RATE_48K,
     "48 K sample rate must be the same!"
 );
-const RINGBUF_SIZE: usize = 4 * 1024;
-
-// TODO: This is dependant on Opus!
-const FRAME: usize = (SAMPLE_RATE_48K as f32 * 0.020) as usize; // The sample rate of 48K is used and opus takes frames in 20 ms.
+const FRAME_SIZE: FrameSize = FrameSize::Ms20;
 
 /// Clamp but without branches.
 ///

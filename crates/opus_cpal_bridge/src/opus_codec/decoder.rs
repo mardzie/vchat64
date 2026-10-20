@@ -1,21 +1,31 @@
-use crate::opus_codec::{OPUS_DEFAULT_SAMPLE_RATE, error::OpusCodeError, frame_size::FrameSize};
+use crate::{
+    SAMPLE_RATE_48K,
+    opus_codec::{error::OpusCodeError, frame_size::FrameSize},
+};
 
 /// Opus `Decoder`
 ///
 /// The `Decoder` is stateful. One `Decoder` per stream.
 #[derive(Debug)]
 pub struct Decoder {
+    #[allow(clippy::struct_field_names)]
     decoder: opus::Decoder,
     frame_size: FrameSize,
 }
 
 impl Decoder {
+    /// Constructs a new `Decoder` with `FrameSize::Ms20`.
+    pub fn new() -> Result<Self, opus::Error> {
+        let frame_size = FrameSize::Ms20;
+        Self::from_frame_size(frame_size)
+    }
+
     /// Constructs a new `Decoder`.
     ///
     /// `frame_size` must be the same as in the `Encoder`.
-    pub fn new(frame_size: FrameSize) -> Result<Self, opus::Error> {
+    pub fn from_frame_size(frame_size: FrameSize) -> Result<Decoder, opus::Error> {
         Ok(Self {
-            decoder: opus::Decoder::new(OPUS_DEFAULT_SAMPLE_RATE, opus::Channels::Mono)?,
+            decoder: opus::Decoder::new(SAMPLE_RATE_48K, opus::Channels::Mono)?,
             frame_size,
         })
     }
@@ -67,7 +77,7 @@ impl Decoder {
     #[must_use]
     #[inline]
     pub fn output_sample_len(&self) -> usize {
-        self.frame_size.samples(OPUS_DEFAULT_SAMPLE_RATE)
+        self.frame_size.samples(SAMPLE_RATE_48K)
     }
 
     #[inline]

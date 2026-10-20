@@ -1,8 +1,11 @@
 use opus::Bitrate;
 
-use crate::opus_codec::{
-    OPUS_DEFAULT_BITRATE, OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE, OPUS_DEFAULT_SAMPLE_RATE,
-    error::OpusCodeError, frame_size::FrameSize,
+use crate::{
+    SAMPLE_RATE_48K,
+    opus_codec::{
+        OPUS_DEFAULT_BITRATE, OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE, error::OpusCodeError,
+        frame_size::FrameSize,
+    },
 };
 
 /// Opus `Encoder`
@@ -17,12 +20,18 @@ pub struct Encoder {
 }
 
 impl Encoder {
+    /// Constructs a new `Encoder` with `FrameSize::Ms20`.
+    pub fn new() -> Result<Self, opus::Error> {
+        let frame_size = FrameSize::Ms20;
+        Self::from_frame_size(frame_size)
+    }
+
     /// Constructs a new `Encoder`.
     ///
     /// `frame_size` must be the same as in the `Decoder`.
-    pub fn new(frame_size: FrameSize) -> Result<Self, opus::Error> {
+    pub fn from_frame_size(frame_size: FrameSize) -> Result<Self, opus::Error> {
         let mut encoder = opus::Encoder::new(
-            OPUS_DEFAULT_SAMPLE_RATE,
+            SAMPLE_RATE_48K,
             opus::Channels::Mono,
             frame_size.application(),
         )?;
@@ -59,7 +68,7 @@ impl Encoder {
     #[must_use]
     #[inline]
     pub fn input_sample_len(&self) -> usize {
-        self.frame_size.samples(OPUS_DEFAULT_SAMPLE_RATE)
+        self.frame_size.samples(SAMPLE_RATE_48K)
     }
 
     /// Forward Error Correction requested.
@@ -72,6 +81,7 @@ impl Encoder {
     #[inline]
     pub fn set_packet_loss_percentage(&mut self, value: u8) -> Result<(), opus::Error> {
         debug_assert!(value <= 100);
+        tracing::debug!("Setting opus encoder packet loss percentage to {value} %");
         self.encoder.set_packet_loss_perc(i32::from(value))
     }
 
@@ -84,6 +94,7 @@ impl Encoder {
         self.encoder
             .set_bitrate(Bitrate::Bits(clamped_bitrate as i32))?;
         self.bitrate = clamped_bitrate;
+        tracing::debug!("Set opus encoder bitrate to {}", clamped_bitrate);
         Ok(())
     }
 
@@ -95,6 +106,7 @@ impl Encoder {
 
     #[inline]
     pub fn reset_state(&mut self) -> Result<(), opus::Error> {
+        tracing::debug!("Resetting opus encoder state");
         self.encoder.reset_state()
     }
 }

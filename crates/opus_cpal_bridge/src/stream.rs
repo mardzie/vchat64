@@ -10,7 +10,9 @@ use cpal::{
 };
 use ringbuf::{HeapCons, HeapProd, HeapRb, traits::Split};
 
-use crate::{FRAME, SAMPLE_RATE_48K, error::StreamBuildError, macros::build_stream::build_stream};
+use crate::{
+    FRAME_SIZE, SAMPLE_RATE_48K, error::StreamBuildError, macros::build_stream::build_stream,
+};
 
 mod sealed {
     pub trait Sealed {}
@@ -251,8 +253,9 @@ impl<D: Direction> Stream<D> {
     /// Output warning if the provided buffer size is smaller than the recommended.
     fn warn_if_ring_undersized(&self, capacity: usize) {
         assert!(
-            capacity >= FRAME,
-            "`capacity({capacity})` can not be smaller than FRAME: {FRAME}"
+            capacity >= FRAME_SIZE.samples(SAMPLE_RATE_48K),
+            "`capacity({capacity})` can not be smaller than FRAME: {}",
+            FRAME_SIZE.samples(SAMPLE_RATE_48K)
         );
 
         match self.stream.buffer_size() {
