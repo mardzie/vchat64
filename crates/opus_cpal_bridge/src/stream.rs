@@ -10,8 +10,10 @@ use cpal::{
 };
 use ringbuf::{HeapCons, HeapProd, HeapRb, traits::Split};
 
-use crate::{SAMPLE_RATE_48K, error::StreamBuildError, macros::build_stream::build_stream};
+use crate::{SAMPLE_RATE_48K, error::StreamBuildError};
+use build_stream::build_stream;
 
+mod build_stream;
 mod sealed {
     pub trait Sealed {}
 }

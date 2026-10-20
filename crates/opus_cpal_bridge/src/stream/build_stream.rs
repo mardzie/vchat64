@@ -12,14 +12,14 @@ macro_rules! build_stream {
         match config.sample_format() {
             $(
             ::cpal::SampleFormat::$variant => ::cpal::traits::DeviceTrait::$build::<
-                $crate::macros::build_stream::cpal_sample_format_type!($variant),
+                $crate::stream::build_stream::cpal_sample_format_type!($variant),
                 _,
                 _,
             >(
                 device,
                 config.config(),
                 move |buf, info| {
-                    $crate::macros::build_stream::call_with!($callback, buf, info, $args)
+                    $crate::stream::build_stream::call_with!($callback, buf, info, $args)
                 },
                 // TODO: names the `SampleType` instead of the direction.
                 |e| ::tracing::error!("{} stream error: {}", stringify!($variant), e),
