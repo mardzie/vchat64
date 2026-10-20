@@ -21,12 +21,13 @@ macro_rules! build_stream {
                 move |buf, info| {
                     $crate::macros::build_stream::call_with!($callback, buf, info, $args)
                 },
+                // TODO: names the `SampleType` instead of the direction.
                 |e| ::tracing::error!("{} stream error: {}", stringify!($variant), e),
                 None,
             )
             .map_err($crate::error::StreamBuildError::from),
             )+
-            format => panic!("Unsupported sample format `SampleFormat::{}`!", format)
+            format => Err($crate::error::StreamBuildError::UnsupportedSampleFormat(format))
         }
     }};
 }

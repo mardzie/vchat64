@@ -12,6 +12,8 @@ pub enum AudioBridgeInitError {
 pub enum StreamBuildError {
     #[error("Default {0} Device unavailable")]
     DefaultDeviceUnavailable(crate::stream::DeviceType),
+    #[error("Unsupported Sample Format {0}")]
+    UnsupportedSampleFormat(cpal::SampleFormat),
     #[error(transparent)]
     Cpal(#[from] cpal::Error),
 }
