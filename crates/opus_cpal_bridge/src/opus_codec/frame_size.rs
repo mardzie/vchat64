@@ -24,6 +24,7 @@ impl FrameSize {
     const UNITS_PER_SECOND: u32 = 1_000_000 / Self::UNIT_US;
 
     #[must_use]
+    #[inline]
     pub(crate) const fn samples(self, sample_rate: u32) -> usize {
         const _: () = assert!(usize::BITS >= u32::BITS, "system must be 32 bits or higher");
         (sample_rate / Self::UNITS_PER_SECOND) as usize * self as usize
@@ -44,6 +45,7 @@ impl FrameSize {
         }
     }
 
+    #[must_use]
     pub const fn application(self) -> opus::Application {
         match self {
             Self::Ms2_5 | Self::Ms5 => opus::Application::LowDelay,

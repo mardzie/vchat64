@@ -72,6 +72,7 @@ impl Encoder {
     }
 
     /// Forward Error Correction requested.
+    #[must_use]
     #[inline]
     pub fn fec(&self) -> bool {
         self.frame_size.fec()

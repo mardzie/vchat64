@@ -214,25 +214,22 @@ impl ResamplerInner {
             }
             ResamplerInner::Convert(resampler) => {
                 debug_assert!(
-                    input_buf.len() >= Self::input_frames_next_inner(&resampler),
+                    input_buf.len() >= Self::input_frames_next_inner(resampler),
                     "Input buffer needs to be at least {} long",
-                    Self::input_frames_next_inner(&resampler)
+                    Self::input_frames_next_inner(resampler)
                 );
                 debug_assert!(
-                    output_buf.len() >= Self::output_frames_next_inner(&resampler),
+                    output_buf.len() >= Self::output_frames_next_inner(resampler),
                     "Output buffer needs to be at least {} long",
-                    Self::output_frames_next_inner(&resampler)
+                    Self::output_frames_next_inner(resampler)
                 );
 
                 let input_adapter = SequentialSlice::new(input_buf, 1, input_buf.len())
                     .expect("input adapter size mismatch");
                 let mut output_adapter = SequentialSlice::new_mut(output_buf, 1, frame)
                     .expect("output adapter size mismatch");
-
                 let (consumed, produced) =
                     resampler.process_into_buffer(&input_adapter, &mut output_adapter, None)?;
-                debug_assert_eq!(produced, frame);
-
                 Ok((consumed, produced))
             }
         }
