@@ -41,36 +41,29 @@ impl Decoder {
         packet: DecodeInput,
         samples: &mut [f32],
     ) -> Result<usize, OpusCodeError> {
-        if samples.len() == self.output_sample_len() {
-            let (packet, fec): (&[u8], bool) = match packet {
-                DecodeInput::Packet(slice) => {
-                    if slice.is_empty() {
-                        return Err(OpusCodeError::EmptyInput);
-                    }
-                    (slice, false)
-                }
-                DecodeInput::Fec { next } => {
-                    if next.is_empty() {
-                        return Err(OpusCodeError::EmptyInput);
-                    }
-                    (next, true)
-                }
-                DecodeInput::Plc => (&[] as &[u8], false),
-            };
-            let nb_samples = self.decoder.get_nb_samples(packet)?;
-            if packet.len() % nb_samples != 0 {
-                return Err(OpusCodeError::InvalidInputSize {
-                    current: packet.len(),
-                    needed: nb_samples,
-                });
-            }
-            Ok(self.decoder.decode_float(packet, samples, fec)?)
-        } else {
-            Err(OpusCodeError::InvalidOutputSize {
+        if samples.len() < self.output_sample_len() {
+            return Err(OpusCodeError::InvalidOutputSize {
                 current: samples.len(),
                 needed: self.output_sample_len(),
-            })
+            });
         }
+
+        let (packet, fec): (&[u8], bool) = match packet {
+            DecodeInput::Packet(slice) => {
+                if slice.is_empty() {
+                    return Err(OpusCodeError::EmptyInput);
+                }
+                (slice, false)
+            }
+            DecodeInput::Fec { next } => {
+                if next.is_empty() {
+                    return Err(OpusCodeError::EmptyInput);
+                }
+                (next, true)
+            }
+            DecodeInput::Plc => (&[] as &[u8], false),
+        };
+        Ok(self.decoder.decode_float(packet, samples, fec)?)
     }
 
     /// Get the per channel output sample count.
