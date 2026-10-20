@@ -2,17 +2,17 @@ use rubato::{Fft, Resampler as _, audioadapter_buffers::direct::SequentialSlice}
 
 use crate::{FRAME, SAMPLE_RATE_48K, stream::DeviceType};
 
-/// Resampler
+/// `Resampler`
 ///
-/// The resampler is stateful.
-/// One per sample stream.
+/// The `Resampler` is stateful.
+/// One `Resampler` per stream.
 #[derive(Debug)]
-pub enum ResamplerInner {
+pub enum Resampler {
     Native,
     Convert(Fft<f32>),
 }
 
-impl ResamplerInner {
+impl Resampler {
     #[must_use]
     pub fn new(device_type: DeviceType, config: cpal::SupportedStreamConfig) -> Self {
         let sample_rate_input: usize;
@@ -53,8 +53,8 @@ impl ResamplerInner {
     #[must_use]
     pub fn max_input(&self) -> usize {
         match self {
-            ResamplerInner::Native => FRAME,
-            ResamplerInner::Convert(resampler) => resampler.input_frames_max(),
+            Resampler::Native => FRAME,
+            Resampler::Convert(resampler) => resampler.input_frames_max(),
         }
     }
 
@@ -62,8 +62,8 @@ impl ResamplerInner {
     #[must_use]
     pub fn max_output(&self) -> usize {
         match self {
-            ResamplerInner::Native => FRAME,
-            ResamplerInner::Convert(resampler) => resampler.output_frames_max(),
+            Resampler::Native => FRAME,
+            Resampler::Convert(resampler) => resampler.output_frames_max(),
         }
     }
 
@@ -72,8 +72,8 @@ impl ResamplerInner {
     #[inline]
     pub fn input_frames_next(&self) -> usize {
         match self {
-            ResamplerInner::Native => FRAME,
-            ResamplerInner::Convert(resampler) => Self::input_frames_next_inner(resampler),
+            Resampler::Native => FRAME,
+            Resampler::Convert(resampler) => Self::input_frames_next_inner(resampler),
         }
     }
 
@@ -87,8 +87,8 @@ impl ResamplerInner {
     #[inline]
     pub fn output_frames_next(&self) -> usize {
         match self {
-            ResamplerInner::Native => FRAME,
-            ResamplerInner::Convert(resampler) => Self::output_frames_next_inner(resampler),
+            Resampler::Native => FRAME,
+            Resampler::Convert(resampler) => Self::output_frames_next_inner(resampler),
         }
     }
 
@@ -109,7 +109,7 @@ impl ResamplerInner {
         output_buf: &mut [f32],
     ) -> Result<(usize, usize), rubato::ResampleError> {
         match self {
-            ResamplerInner::Native => {
+            Resampler::Native => {
                 debug_assert!(
                     input_buf.len() >= FRAME,
                     "Input buffer needs to be at least {FRAME} long",
@@ -122,7 +122,7 @@ impl ResamplerInner {
                 output_buf[..FRAME].copy_from_slice(&input_buf[..FRAME]);
                 Ok((FRAME, FRAME))
             }
-            ResamplerInner::Convert(resampler) => {
+            Resampler::Convert(resampler) => {
                 debug_assert!(
                     input_buf.len() >= Self::input_frames_next_inner(resampler),
                     "Input buffer needs to be at least {} long",

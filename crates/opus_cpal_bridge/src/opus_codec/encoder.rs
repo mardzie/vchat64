@@ -5,6 +5,9 @@ use crate::opus_codec::{
     error::OpusCodeError, frame_size::FrameSize,
 };
 
+/// Opus `Encoder`
+///
+/// One `Encoder` can feed multiple `Decoder`.
 #[derive(Debug)]
 pub struct Encoder {
     #[allow(clippy::struct_field_names)]

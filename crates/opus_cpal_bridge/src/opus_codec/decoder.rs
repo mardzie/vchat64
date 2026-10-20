@@ -1,5 +1,8 @@
 use crate::opus_codec::{OPUS_DEFAULT_SAMPLE_RATE, error::OpusCodeError, frame_size::FrameSize};
 
+/// Opus `Decoder`
+///
+/// The `Decoder` is stateful. One `Decoder` per stream.
 #[derive(Debug)]
 pub struct Decoder {
     decoder: opus::Decoder,

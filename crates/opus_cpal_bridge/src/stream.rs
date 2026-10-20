@@ -142,6 +142,34 @@ impl Direction for Output {
     }
 }
 
+#[must_use]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DeviceType {
+    Input,
+    Output,
+}
+
+impl From<Input> for DeviceType {
+    fn from(_: Input) -> Self {
+        Self::Input
+    }
+}
+
+impl From<Output> for DeviceType {
+    fn from(_: Output) -> Self {
+        Self::Output
+    }
+}
+
+impl Display for DeviceType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DeviceType::Input => write!(f, "Input"),
+            DeviceType::Output => write!(f, "Output"),
+        }
+    }
+}
+
 /// A cpal Stream wrapper.
 ///
 /// Works with mono `f32` (-1.0 <= s < 1.0) audio samples.
@@ -250,34 +278,6 @@ impl<D: Direction> Debug for Stream<D> {
             .field("device", &self.device)
             .field("config", &self.config)
             .finish_non_exhaustive()
-    }
-}
-
-#[must_use]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum DeviceType {
-    Input,
-    Output,
-}
-
-impl From<Input> for DeviceType {
-    fn from(_: Input) -> Self {
-        Self::Input
-    }
-}
-
-impl From<Output> for DeviceType {
-    fn from(_: Output) -> Self {
-        Self::Output
-    }
-}
-
-impl Display for DeviceType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DeviceType::Input => write!(f, "Input"),
-            DeviceType::Output => write!(f, "Output"),
-        }
     }
 }
 
