@@ -38,11 +38,11 @@ impl Decoder {
     #[inline]
     pub fn decode(
         &mut self,
-        input: DecodeInput,
-        output: &mut [f32],
+        packet: DecodeInput,
+        samples: &mut [f32],
     ) -> Result<usize, OpusCodeError> {
-        if output.len() == self.output_sample_len() {
-            let (packet, fec): (&[u8], bool) = match input {
+        if samples.len() == self.output_sample_len() {
+            let (packet, fec): (&[u8], bool) = match packet {
                 DecodeInput::Packet(slice) => {
                     if slice.is_empty() {
                         return Err(OpusCodeError::EmptyInput);
@@ -64,10 +64,10 @@ impl Decoder {
                     needed: nb_samples,
                 });
             }
-            Ok(self.decoder.decode_float(packet, output, fec)?)
+            Ok(self.decoder.decode_float(packet, samples, fec)?)
         } else {
             Err(OpusCodeError::InvalidOutputSize {
-                current: output.len(),
+                current: samples.len(),
                 needed: self.output_sample_len(),
             })
         }
