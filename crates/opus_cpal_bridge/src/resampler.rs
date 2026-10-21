@@ -1,8 +1,10 @@
 use std::num::NonZeroUsize;
 
 use crate::{
-    FRAME_SIZE, SAMPLE_RATE_48K, opus_codec::frame_size::FrameSize,
-    resampler::inner::ResamplerInner, stream::DeviceType,
+    FRAME_SIZE, SAMPLE_RATE_48K,
+    opus_codec::frame_size::FrameSize,
+    resampler::inner::ResamplerInner,
+    stream::{Direction, Stream},
 };
 
 mod inner;
@@ -21,24 +23,22 @@ pub struct Resampler {
 
 impl Resampler {
     #[must_use]
-    pub fn new(
-        device_type: DeviceType,
-        config: cpal::SupportedStreamConfig,
-    ) -> Result<Self, rubato::ResamplerConstructionError> {
-        Self::from_frame_size(device_type, config, FRAME_SIZE)
+    pub fn new<D>(stream: &Stream<D>) -> Result<Self, rubato::ResamplerConstructionError>
+    where
+        D: Direction,
+    {
+        Self::from_frame_size(stream, FRAME_SIZE)
     }
 
     #[must_use]
-    pub fn from_frame_size(
-        device_type: DeviceType,
-        config: cpal::SupportedStreamConfig,
+    pub fn from_frame_size<D>(
+        stream: &Stream<D>,
         frame_size: FrameSize,
-    ) -> Result<Self, rubato::ResamplerConstructionError> {
-        let inner = ResamplerInner::new(
-            device_type,
-            config,
-            frame_size.samples(SAMPLE_RATE_48K) as u32,
-        )?;
+    ) -> Result<Self, rubato::ResamplerConstructionError>
+    where
+        D: Direction,
+    {
+        let inner = ResamplerInner::new(stream, frame_size.samples(SAMPLE_RATE_48K) as u32)?;
         Ok(Self { inner, frame_size })
     }
 
@@ -87,6 +87,11 @@ impl Resampler {
     ) -> Result<(usize, usize), rubato::ResampleError> {
         self.inner
             .resample(input_buf, output_buf, self.frame_at_48k())
+    }
+
+    #[inline]
+    pub fn reset(&mut self) {
+        self.inner.reset();
     }
 
     #[must_use]

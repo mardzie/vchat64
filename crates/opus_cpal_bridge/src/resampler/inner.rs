@@ -1,6 +1,10 @@
 use rubato::{Fft, Resampler, audioadapter_buffers::direct::SequentialSlice};
 
-use crate::{SAMPLE_RATE_48K, resampler::CHANNELS, stream::DeviceType};
+use crate::{
+    SAMPLE_RATE_48K,
+    resampler::CHANNELS,
+    stream::{DeviceType, Direction, Stream},
+};
 
 #[derive(Debug)]
 pub enum ResamplerInner {
@@ -13,26 +17,28 @@ pub enum ResamplerInner {
 
 impl ResamplerInner {
     #[must_use]
-    pub fn new(
-        device_type: DeviceType,
-        config: cpal::SupportedStreamConfig,
+    pub fn new<D>(
+        stream: &Stream<D>,
         chunk_size: u32,
-    ) -> Result<Self, rubato::ResamplerConstructionError> {
+    ) -> Result<Self, rubato::ResamplerConstructionError>
+    where
+        D: Direction,
+    {
         let sample_rate_input: usize;
         let sample_rate_output: usize;
-        match device_type {
+        match stream.device_type() {
             DeviceType::Input => {
-                sample_rate_input = config.sample_rate() as usize;
+                sample_rate_input = stream.config().sample_rate() as usize;
                 sample_rate_output = SAMPLE_RATE_48K as usize;
             }
             DeviceType::Output => {
                 sample_rate_input = SAMPLE_RATE_48K as usize;
-                sample_rate_output = config.sample_rate() as usize;
+                sample_rate_output = stream.config().sample_rate() as usize;
             }
         }
 
         Self::from_sample_rates(
-            device_type,
+            stream.device_type(),
             sample_rate_input,
             sample_rate_output,
             chunk_size,
@@ -152,6 +158,15 @@ impl ResamplerInner {
                 let (consumed, produced) =
                     resampler.process_into_buffer(&input_adapter, &mut output_adapter, None)?;
                 Ok((consumed, produced))
+            }
+        }
+    }
+
+    pub fn reset(&mut self) {
+        match self {
+            Self::Native => (),
+            Self::Convert { resampler, .. } => {
+                resampler.reset();
             }
         }
     }

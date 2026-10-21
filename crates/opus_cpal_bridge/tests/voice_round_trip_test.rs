@@ -4,7 +4,7 @@ use opus_cpal_bridge::{
         encoder::Encoder,
     },
     resampler::Resampler,
-    stream::{DeviceType, Input, Output, Stream},
+    stream::{Input, Output, Stream},
 };
 use ringbuf::{
     HeapCons, HeapProd, HeapRb,
@@ -31,8 +31,7 @@ fn input_loop(
     mut consumer: HeapCons<f32>,
     mut packet_producer: HeapProd<(usize, [u8; 4000])>,
 ) {
-    let mut resampler = Resampler::new(DeviceType::Input, input.config())
-        .expect("Failed to construct input resampler");
+    let mut resampler = Resampler::new(&input).expect("Failed to construct input resampler");
     let mut encoder = Encoder::new().expect("Failed to construct encoder");
     let mut buf_in = vec![0.0f32; usize::from(u16::MAX)];
     let mut n_in: usize = 0;
@@ -87,8 +86,7 @@ fn output_loop(
     mut producer: HeapProd<f32>,
     mut packet_consumer: HeapCons<(usize, [u8; 4000])>,
 ) {
-    let mut resampler = Resampler::new(DeviceType::Output, output.config())
-        .expect("Failed to construct output resampler");
+    let mut resampler = Resampler::new(&output).expect("Failed to construct output resampler");
     let mut decoder = Decoder::new().expect("Failed to construct decoder");
     let mut buf_in = vec![0.0f32; usize::from(u16::MAX)];
     let mut n_in: usize = 0;
