@@ -15,34 +15,39 @@ use build_stream::build_stream;
 
 mod build_stream;
 mod sealed {
-    pub trait Sealed {}
+    use cpal::{Device, SupportedStreamConfig};
+    use ringbuf::HeapRb;
+
+    use crate::stream::{DeviceType, error::StreamBuildError};
+
+    pub trait SealedDirection {
+        const DEVICE_TYPE: DeviceType;
+
+        type SupportedConfigs: Iterator<Item = cpal::SupportedStreamConfigRange>;
+        /// Ring half returned to the caller: `HeapCons<f32>` for Input, `HeapProd<f32>` for Output.
+        type Handle;
+
+        fn default_device(host: &cpal::Host) -> Option<Device>;
+        fn supported_configs(device: &Device) -> Result<Self::SupportedConfigs, cpal::Error>;
+        fn default_config(device: &Device) -> Result<cpal::SupportedStreamConfig, cpal::Error>;
+        fn build(
+            device: &Device,
+            config: SupportedStreamConfig,
+            rb: HeapRb<f32>,
+        ) -> Result<(cpal::Stream, Self::Handle), StreamBuildError>;
+    }
 }
 
 pub mod error;
 
 /// The Direction of a [`Stream<D>`].
-pub trait Direction: sealed::Sealed + 'static {
-    const DEVICE_TYPE: DeviceType;
-
-    type SupportedConfigs: Iterator<Item = cpal::SupportedStreamConfigRange>;
-    /// Ring half returned to the caller: `HeapCons<f32>` for Input, `HeapProd<f32>` for Output.
-    type Handle;
-
-    fn default_device(host: &cpal::Host) -> Option<Device>;
-    fn supported_configs(device: &Device) -> Result<Self::SupportedConfigs, cpal::Error>;
-    fn default_config(device: &Device) -> Result<cpal::SupportedStreamConfig, cpal::Error>;
-    fn build(
-        device: &Device,
-        config: SupportedStreamConfig,
-        rb: HeapRb<f32>,
-    ) -> Result<(cpal::Stream, Self::Handle), StreamBuildError>;
-}
+pub trait Direction: sealed::SealedDirection + 'static {}
 
 /// Input device type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Input;
-impl sealed::Sealed for Input {}
-impl Direction for Input {
+impl Direction for Input {}
+impl sealed::SealedDirection for Input {
     const DEVICE_TYPE: DeviceType = DeviceType::Input;
 
     type SupportedConfigs = cpal::SupportedInputConfigs;
@@ -95,8 +100,8 @@ impl Direction for Input {
 /// Output device type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Output;
-impl sealed::Sealed for Output {}
-impl Direction for Output {
+impl Direction for Output {}
+impl sealed::SealedDirection for Output {
     const DEVICE_TYPE: DeviceType = DeviceType::Output;
 
     type SupportedConfigs = cpal::SupportedOutputConfigs;
