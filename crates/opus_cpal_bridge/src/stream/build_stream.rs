@@ -25,9 +25,9 @@ macro_rules! build_stream {
                 |e| ::tracing::error!("{} stream error: {}", stringify!($variant), e),
                 None,
             )
-            .map_err($crate::error::StreamBuildError::from),
+            .map_err($crate::stream::error::StreamBuildError::from),
             )+
-            format => Err($crate::error::StreamBuildError::UnsupportedSampleFormat(format))
+            format => Err($crate::stream::error::StreamBuildError::UnsupportedSampleFormat(format))
         }
     }};
 }

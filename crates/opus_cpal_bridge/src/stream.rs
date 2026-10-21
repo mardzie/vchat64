@@ -10,13 +10,15 @@ use cpal::{
 };
 use ringbuf::{HeapCons, HeapProd, HeapRb, traits::Split};
 
-use crate::{SAMPLE_RATE_48K, error::StreamBuildError};
+use crate::{SAMPLE_RATE_48K, stream::error::StreamBuildError};
 use build_stream::build_stream;
 
 mod build_stream;
 mod sealed {
     pub trait Sealed {}
 }
+
+pub mod error;
 
 /// The Direction of a [`Stream<D>`].
 pub trait Direction: sealed::Sealed + 'static {

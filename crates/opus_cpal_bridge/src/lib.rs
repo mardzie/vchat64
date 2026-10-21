@@ -4,7 +4,6 @@ pub use opus::Bitrate;
 
 use crate::opus_codec::frame_size::FrameSize;
 
-pub mod error;
 pub mod opus_codec;
 pub mod resampler;
 pub mod stream;
