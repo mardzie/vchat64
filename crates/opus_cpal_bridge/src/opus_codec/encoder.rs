@@ -1,7 +1,7 @@
 use opus::Bitrate;
 
 use crate::{
-    SAMPLE_RATE_48K,
+    FRAME_SIZE, SAMPLE_RATE_48K,
     opus_codec::{
         OPUS_DEFAULT_BITRATE, OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE, error::OpusCodeError,
         frame_size::FrameSize,
@@ -20,9 +20,9 @@ pub struct Encoder {
 }
 
 impl Encoder {
-    /// Constructs a new `Encoder` with `FrameSize::Ms20`.
+    /// Constructs a new `Encoder` with `FRAME_SIZE`.
     pub fn new() -> Result<Self, opus::Error> {
-        let frame_size = FrameSize::Ms20;
+        let frame_size = FRAME_SIZE;
         Self::from_frame_size(frame_size)
     }
 
@@ -39,6 +39,7 @@ impl Encoder {
         // VBR leaks encrypted speech through packet sizes.
         // DTX must be off too or it can leak information through encryption.
         encoder.set_vbr(false)?;
+        encoder.set_dtx(false)?;
         encoder.set_inband_fec(frame_size.fec())?;
         encoder.set_packet_loss_perc(i32::from(OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE))?;
 
@@ -79,14 +80,19 @@ impl Encoder {
     }
 
     /// Sets the encoder’s expected packet loss percentage.
+    ///
+    /// Clamps the percentage to a valid 0 to 100 range.
     #[inline]
-    pub fn set_packet_loss_percentage(&mut self, value: u8) -> Result<(), opus::Error> {
-        debug_assert!(value <= 100);
-        tracing::debug!("Setting opus encoder packet loss percentage to {value} %");
-        self.encoder.set_packet_loss_perc(i32::from(value))
+    pub fn set_packet_loss_percentage(&mut self, percentage: u8) -> Result<(), opus::Error> {
+        let clamped_percentage = percentage.clamp(0, 100);
+        tracing::debug!("Setting opus encoder packet loss percentage to {clamped_percentage} %");
+        self.encoder
+            .set_packet_loss_perc(i32::from(clamped_percentage))
     }
 
     /// Set the encoder's bitrate.
+    ///
+    /// Clamps the bitrate `500` to `300000`.
     #[inline]
     pub fn set_bitrate(&mut self, bitrate: u32) -> Result<(), opus::Error> {
         // Min/max come from `OPUS_SET_BITRATE_REQUEST` in

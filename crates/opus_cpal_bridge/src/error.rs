@@ -10,9 +10,9 @@ pub enum AudioBridgeInitError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum StreamBuildError {
-    #[error("Default {0} Device unavailable")]
+    #[error("default {0} device unavailable")]
     DefaultDeviceUnavailable(crate::stream::DeviceType),
-    #[error("Unsupported Sample Format {0}")]
+    #[error("unsupported sample format {0}")]
     UnsupportedSampleFormat(cpal::SampleFormat),
     #[error(transparent)]
     Cpal(#[from] cpal::Error),
@@ -20,12 +20,12 @@ pub enum StreamBuildError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum PlayPauseError {
-    #[error("Device not available")]
+    #[error("device not available")]
     DeviceNotAvailable,
-    #[error("Stream invalidated")]
+    #[error("stream invalidated")]
     StreamInvalidated,
     /// The Stream could not be paused.
-    #[error("Unsupported operation")]
+    #[error("unsupported operation")]
     UnsupportedOperation,
 }
 

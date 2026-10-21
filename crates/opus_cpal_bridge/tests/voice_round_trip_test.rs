@@ -22,9 +22,8 @@ fn voice_round_trip() {
     let (packet_producer, packet_consumer) = HeapRb::<(usize, [u8; 4000])>::new(16).split();
     let (input, consumer) = Stream::<Input>::new(&host, RINGBUF_SIZE).unwrap();
     let (output, producer) = Stream::<Output>::new(&host, RINGBUF_SIZE).unwrap();
-    let handle = std::thread::spawn(move || output_loop(output, producer, packet_consumer));
+    let _handle = std::thread::spawn(move || output_loop(output, producer, packet_consumer));
     input_loop(input, consumer, packet_producer);
-    handle.join().unwrap();
 }
 
 fn input_loop(
@@ -32,7 +31,8 @@ fn input_loop(
     mut consumer: HeapCons<f32>,
     mut packet_producer: HeapProd<(usize, [u8; 4000])>,
 ) {
-    let mut resampler = Resampler::new(DeviceType::Input, input.config());
+    let mut resampler = Resampler::new(DeviceType::Input, input.config())
+        .expect("Failed to construct input resampler");
     let mut encoder = Encoder::new().expect("Failed to construct encoder");
     let mut buf_in = vec![0.0f32; usize::from(u16::MAX)];
     let mut n_in: usize = 0;
@@ -40,9 +40,11 @@ fn input_loop(
     let mut n_out: usize = 0;
     info!("Input Resampler max input size {}", resampler.max_input());
     info!("Input Resampler max output size {}", resampler.max_output());
-    let mut packet = vec![0u8; usize::from(u16::MAX)];
+    let mut packet = vec![0u8; 4000];
 
     loop {
+        std::thread::park_timeout(std::time::Duration::from_millis(1));
+
         let input_frames_next = resampler.input_frames_next();
         if consumer.occupied_len() < input_frames_next {
             continue;
@@ -52,7 +54,7 @@ fn input_loop(
         assert!(popped == input_frames_next);
 
         let input_frames_next = resampler.input_frames_next();
-        if buf_in.len() < input_frames_next {
+        if n_in < input_frames_next {
             continue;
         }
         let (consumed, produced) = resampler
@@ -77,8 +79,6 @@ fn input_loop(
             .try_push((len, out_packet))
             .expect("Failed to push packet to ring buf");
         info!("Pushed {len} onto the packet wire");
-
-        std::thread::park_timeout(std::time::Duration::from_millis(1));
     }
 }
 
@@ -87,7 +87,8 @@ fn output_loop(
     mut producer: HeapProd<f32>,
     mut packet_consumer: HeapCons<(usize, [u8; 4000])>,
 ) {
-    let mut resampler = Resampler::new(DeviceType::Output, output.config());
+    let mut resampler = Resampler::new(DeviceType::Output, output.config())
+        .expect("Failed to construct output resampler");
     let mut decoder = Decoder::new().expect("Failed to construct decoder");
     let mut buf_in = vec![0.0f32; usize::from(u16::MAX)];
     let mut n_in: usize = 0;
@@ -95,6 +96,8 @@ fn output_loop(
     let mut n_out: usize = 0;
 
     loop {
+        std::thread::park_timeout(std::time::Duration::from_millis(1));
+
         let (len, packet) = match packet_consumer.try_pop() {
             Some(v) => v,
             None => continue,
@@ -119,7 +122,5 @@ fn output_loop(
         let pushed = producer.push_slice(&buf_out[..n_out]);
         buf_out.copy_within(pushed..n_out, 0);
         n_out = n_out.strict_sub(pushed);
-
-        std::thread::park_timeout(std::time::Duration::from_millis(1));
     }
 }

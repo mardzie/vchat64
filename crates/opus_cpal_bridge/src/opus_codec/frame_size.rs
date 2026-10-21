@@ -19,15 +19,15 @@ pub enum FrameSize {
 }
 
 impl FrameSize {
-    const UNIT_US: u32 = 2_500;
+    const UNIT_US: u64 = 2_500;
     /// 2.5 ms in 1000 ms (1000 / 2.5)
-    const UNITS_PER_SECOND: u32 = 1_000_000 / Self::UNIT_US;
+    const UNITS_PER_SECOND: u64 = 1_000_000 / Self::UNIT_US;
 
     #[must_use]
     #[inline]
     pub(crate) const fn samples(self, sample_rate: u32) -> usize {
         const _: () = assert!(usize::BITS >= u32::BITS, "system must be 32 bits or higher");
-        (sample_rate / Self::UNITS_PER_SECOND) as usize * self as usize
+        (sample_rate as u64 * self as u64).div_ceil(Self::UNITS_PER_SECOND) as usize
     }
 
     /// Can support FEC.

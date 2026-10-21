@@ -1,5 +1,5 @@
 use crate::{
-    SAMPLE_RATE_48K,
+    FRAME_SIZE, SAMPLE_RATE_48K,
     opus_codec::{error::OpusCodeError, frame_size::FrameSize},
 };
 
@@ -14,9 +14,9 @@ pub struct Decoder {
 }
 
 impl Decoder {
-    /// Constructs a new `Decoder` with `FrameSize::Ms20`.
+    /// Constructs a new `Decoder` with `FRAME_SIZE`.
     pub fn new() -> Result<Self, opus::Error> {
-        let frame_size = FrameSize::Ms20;
+        let frame_size = FRAME_SIZE;
         Self::from_frame_size(frame_size)
     }
 

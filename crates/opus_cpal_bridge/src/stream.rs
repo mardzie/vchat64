@@ -183,7 +183,6 @@ impl Display for DeviceType {
 /// The ring needs to be emptied regularly.
 /// If the ring is at capacity, new samples from the output device will be dropped.
 /// Only the freshest samples will be written into the ring if the rings free space is insufficient.
-/// Older samples will be dropped.
 /// The devices [`SampleFormat`] will be converted to `f32`.
 /// All channels will be averaged to mono audio.
 ///
