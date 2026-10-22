@@ -273,15 +273,39 @@ fn pick_config<D: Direction>(device: &Device) -> Result<SupportedStreamConfig, c
     Ok(config)
 }
 
+/// Ranks the `format`.
+///
+/// Must be kept in sync with `cpal_sample_format_type!`.
+#[must_use]
+fn format_rank(format: SampleFormat) -> Option<u8> {
+    use SampleFormat as F;
+    Some(match format {
+        F::F32 => 0,
+        F::F64 => 1,
+        F::I32 => 2,
+        F::U32 => 3,
+        F::I16 => 4,
+        F::U16 => 5,
+        F::I24 => 6,
+        F::U24 => 7,
+        F::I64 => 8,
+        F::U64 => 9,
+        F::I8 => 10,
+        F::U8 => 11,
+        _ => return None,
+    })
+}
+
 #[must_use]
 fn preferred_config_filter(
     config_iter: impl IntoIterator<Item = cpal::SupportedStreamConfigRange>,
 ) -> Option<cpal::SupportedStreamConfig> {
     config_iter
         .into_iter()
-        .filter(|r| matches!(r.sample_format(), SampleFormat::F32))
         .filter_map(|r| r.try_with_sample_rate(SAMPLE_RATE_48K))
-        .min_by_key(cpal::SupportedStreamConfig::channels)
+        .filter_map(|c| format_rank(c.sample_format()).map(|rank| (rank, c)))
+        .min_by_key(|(rank, c)| (*rank, c.channels()))
+        .map(|(_, c)| c)
 }
 
 fn non_zero_channels(config: &cpal::SupportedStreamConfig) -> NonZero<ChannelCount> {
