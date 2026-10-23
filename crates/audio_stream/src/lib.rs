@@ -4,21 +4,23 @@ use std::{
     num::NonZero,
 };
 
+use audio_common::SAMPLE_RATE_48K;
 use cpal::{
     ChannelCount, Device, SampleFormat, SupportedStreamConfig,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use ringbuf::{HeapCons, HeapProd, HeapRb, traits::Split};
 
-use crate::{SAMPLE_RATE_48K, stream::error::StreamBuildError};
 use build_stream::build_stream;
+
+use crate::error::StreamBuildError;
 
 mod build_stream;
 mod sealed {
     use cpal::{Device, SupportedStreamConfig};
     use ringbuf::HeapRb;
 
-    use crate::stream::{DeviceType, error::StreamBuildError};
+    use crate::{DeviceType, error::StreamBuildError};
 
     pub trait SealedDirection {
         const DEVICE_TYPE: DeviceType;
@@ -328,7 +330,7 @@ mod audio_callback {
         traits::{Consumer, Observer, Producer},
     };
 
-    use crate::stream::clamp_f32_sample;
+    use crate::clamp_f32_sample;
 
     pub fn input_audio_callback<T>(
         buf: &[T],

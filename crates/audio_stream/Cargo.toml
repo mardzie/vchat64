@@ -1,15 +1,11 @@
 [package]
-name = "opus_cpal_bridge"
+name = "audio_stream"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+audio_common.workspace = true
 cpal = "0.18.2"
-opus = "0.4.0"
 ringbuf.workspace = true
-rubato = "5.0.1"
 thiserror.workspace = true
 tracing.workspace = true
-
-[dev-dependencies]
-tracing-subscriber.workspace = true

@@ -1,7 +1,7 @@
 #[derive(thiserror::Error, Debug)]
 pub enum StreamBuildError {
     #[error("default {0} device unavailable")]
-    DefaultDeviceUnavailable(crate::stream::DeviceType),
+    DefaultDeviceUnavailable(crate::DeviceType),
     #[error("unsupported sample format {0}")]
     UnsupportedSampleFormat(cpal::SampleFormat),
     #[error(transparent)]

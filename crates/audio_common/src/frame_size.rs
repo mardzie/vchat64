@@ -25,9 +25,8 @@ impl FrameSize {
 
     #[must_use]
     #[inline]
-    pub(crate) const fn samples(self, sample_rate: u32) -> usize {
-        const _: () = assert!(usize::BITS >= u32::BITS, "system must be 32 bits or higher");
-        (sample_rate as u64 * self as u64).div_ceil(Self::UNITS_PER_SECOND) as usize
+    pub const fn samples(self, sample_rate: u32) -> u64 {
+        (sample_rate as u64 * self as u64).div_ceil(Self::UNITS_PER_SECOND) as u64
     }
 
     /// Can support FEC.
@@ -57,5 +56,17 @@ impl FrameSize {
             | Self::Ms100
             | Self::Ms120 => opus::Application::Voip,
         }
+    }
+
+    /// The duration of the `FrameSize`.
+    #[must_use]
+    pub const fn duration(self) -> std::time::Duration {
+        std::time::Duration::from_micros(Self::UNIT_US * self as u64)
+    }
+}
+
+impl Default for FrameSize {
+    fn default() -> Self {
+        Self::Ms20
     }
 }

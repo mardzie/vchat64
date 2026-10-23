@@ -1,7 +1,6 @@
-use crate::{
-    FRAME_SIZE, SAMPLE_RATE_48K,
-    opus_codec::{error::OpusCodeError, frame_size::FrameSize},
-};
+use audio_common::{SAMPLE_RATE_48K, frame_size::FrameSize};
+
+use crate::error::OpusCodeError;
 
 /// Opus `Decoder`
 ///
@@ -16,7 +15,7 @@ pub struct Decoder {
 impl Decoder {
     /// Constructs a new `Decoder` with `FRAME_SIZE`.
     pub fn new() -> Result<Self, opus::Error> {
-        let frame_size = FRAME_SIZE;
+        let frame_size = FrameSize::default();
         Self::from_frame_size(frame_size)
     }
 

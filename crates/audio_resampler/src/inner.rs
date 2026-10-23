@@ -1,10 +1,6 @@
+use audio_common::{CHANNELS, SAMPLE_RATE_48K};
+use audio_stream::{DeviceType, Direction, Stream};
 use rubato::{Fft, Resampler, audioadapter_buffers::direct::SequentialSlice};
-
-use crate::{
-    SAMPLE_RATE_48K,
-    resampler::CHANNELS,
-    stream::{DeviceType, Direction, Stream},
-};
 
 #[derive(Debug)]
 pub enum ResamplerInner {

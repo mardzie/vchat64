@@ -12,22 +12,22 @@ macro_rules! build_stream {
         match config.sample_format() {
             $(
             ::cpal::SampleFormat::$variant => ::cpal::traits::DeviceTrait::$build::<
-                $crate::stream::build_stream::cpal_sample_format_type!($variant),
+                $crate::build_stream::cpal_sample_format_type!($variant),
                 _,
                 _,
             >(
                 device,
                 config.config(),
                 move |buf, info| {
-                    $crate::stream::build_stream::call_with!($callback, buf, info, $args)
+                    $crate::build_stream::call_with!($callback, buf, info, $args)
                 },
                 // TODO: names the `SampleType` instead of the direction.
                 |e| ::tracing::error!("{} stream error: {}", stringify!($variant), e),
                 None,
             )
-            .map_err($crate::stream::error::StreamBuildError::from),
+            .map_err($crate::error::StreamBuildError::from),
             )+
-            format => Err($crate::stream::error::StreamBuildError::UnsupportedSampleFormat(format))
+            format => Err($crate::error::StreamBuildError::UnsupportedSampleFormat(format))
         }
     }};
 }

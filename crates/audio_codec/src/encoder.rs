@@ -1,12 +1,7 @@
+use audio_common::{SAMPLE_RATE_48K, frame_size::FrameSize};
 use opus::Bitrate;
 
-use crate::{
-    FRAME_SIZE, SAMPLE_RATE_48K,
-    opus_codec::{
-        OPUS_DEFAULT_BITRATE, OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE, error::OpusCodeError,
-        frame_size::FrameSize,
-    },
-};
+use crate::{DEFAULT_BITRATE, DEFAULT_PACKET_LOSS_PERCENTAGE, error::OpusCodeError};
 
 /// Opus `Encoder`
 ///
@@ -22,7 +17,7 @@ pub struct Encoder {
 impl Encoder {
     /// Constructs a new `Encoder` with `FRAME_SIZE`.
     pub fn new() -> Result<Self, opus::Error> {
-        let frame_size = FRAME_SIZE;
+        let frame_size = FrameSize::default();
         Self::from_frame_size(frame_size)
     }
 
@@ -41,14 +36,14 @@ impl Encoder {
         encoder.set_vbr(false)?;
         encoder.set_dtx(false)?;
         encoder.set_inband_fec(frame_size.fec())?;
-        encoder.set_packet_loss_perc(i32::from(OPUS_DEFAULT_PACKET_LOSS_PERCENTAGE))?;
+        encoder.set_packet_loss_perc(i32::from(DEFAULT_PACKET_LOSS_PERCENTAGE))?;
 
         let mut this = Self {
             encoder,
-            bitrate: OPUS_DEFAULT_BITRATE,
+            bitrate: DEFAULT_BITRATE,
             frame_size,
         };
-        this.set_bitrate(OPUS_DEFAULT_BITRATE)?;
+        this.set_bitrate(DEFAULT_BITRATE)?;
 
         Ok(this)
     }

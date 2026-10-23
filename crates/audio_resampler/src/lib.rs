@@ -1,15 +1,9 @@
-use std::num::NonZeroUsize;
+use audio_common::{SAMPLE_RATE_48K, frame_size::FrameSize};
+use audio_stream::{Direction, Stream};
 
-use crate::{
-    FRAME_SIZE, SAMPLE_RATE_48K,
-    opus_codec::frame_size::FrameSize,
-    resampler::inner::ResamplerInner,
-    stream::{Direction, Stream},
-};
+use crate::inner::ResamplerInner;
 
 mod inner;
-
-const CHANNELS: NonZeroUsize = NonZeroUsize::new(1).unwrap();
 
 /// `Resampler`
 ///
@@ -27,7 +21,7 @@ impl Resampler {
     where
         D: Direction,
     {
-        Self::from_frame_size(stream, FRAME_SIZE)
+        Self::from_frame_size(stream, FrameSize::default())
     }
 
     #[must_use]
@@ -96,6 +90,7 @@ impl Resampler {
 
     #[must_use]
     fn frame_at_48k(&self) -> usize {
-        self.frame_size.samples(SAMPLE_RATE_48K)
+        usize::try_from(self.frame_size.samples(SAMPLE_RATE_48K))
+            .expect("can not convert u64 to usize")
     }
 }
