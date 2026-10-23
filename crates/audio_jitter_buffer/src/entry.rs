@@ -1,24 +1,23 @@
+use std::time::Instant;
+
+use crate::SequenceNumber;
+
 /// A `JitterBuf` entry.
 ///
 /// The `number` is the only
 #[derive(Debug, Clone)]
-pub struct Entry<T>
-where
-    T: Clone,
-{
-    sequence_number: u64,
-    timestamp: u64,
+pub struct Entry<T> {
+    seq: SequenceNumber,
+    /// The arrival timestamp.
+    timestamp: Instant,
     inner: T,
 }
 
-impl<T> Entry<T>
-where
-    T: Clone,
-{
+impl<T> Entry<T> {
     #[must_use]
-    pub fn new(sequence_number: u64, timestamp: u64, inner: T) -> Self {
+    pub fn new(seq: u64, timestamp: Instant, inner: T) -> Self {
         Self {
-            sequence_number,
+            seq,
             timestamp,
             inner,
         }
@@ -28,13 +27,13 @@ where
     #[must_use]
     #[inline]
     pub fn seq(&self) -> u64 {
-        self.sequence_number
+        self.seq
     }
 
     /// The timestamp of this `Entry`.
     #[must_use]
     #[inline]
-    pub fn timestamp(&self) -> u64 {
+    pub fn timestamp(&self) -> Instant {
         self.timestamp
     }
 
@@ -52,32 +51,22 @@ where
     }
 }
 
-impl<T> PartialEq for Entry<T>
-where
-    T: Clone,
-{
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        self.sequence_number == other.sequence_number
-    }
-}
-impl<T> Eq for Entry<T> where T: Clone {}
+#[cfg(test)]
+mod entry_test {
+    use std::time::Instant;
 
-impl<T> Ord for Entry<T>
-where
-    T: Clone,
-{
-    #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.sequence_number.cmp(&other.sequence_number)
-    }
-}
-impl<T> PartialOrd for Entry<T>
-where
-    T: Clone,
-{
-    #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
+    use crate::Entry;
+
+    #[test]
+    fn field_access() {
+        let seq = 1;
+        let timestamp = Instant::now();
+        let inner: u128 = 200;
+        let entry = Entry::new(seq, timestamp, inner);
+
+        assert_eq!(entry.seq(), seq);
+        assert_eq!(entry.timestamp(), timestamp);
+        assert_eq!(entry.get(), &inner);
+        assert_eq!(entry.into_inner(), inner);
     }
 }

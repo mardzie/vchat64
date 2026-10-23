@@ -65,6 +65,27 @@ impl FrameSize {
     }
 }
 
+impl TryFrom<opus::FrameSize> for FrameSize {
+    type Error = crate::error::OpusFrameSizeVariantUsupported;
+
+    fn try_from(opus_frame_size: opus::FrameSize) -> Result<Self, Self::Error> {
+        use opus::FrameSize as Fs;
+
+        Ok(match opus_frame_size {
+            Fs::Ms2_5 => Self::Ms2_5,
+            Fs::Ms5 => Self::Ms5,
+            Fs::Ms10 => Self::Ms10,
+            Fs::Ms20 => Self::Ms20,
+            Fs::Ms40 => Self::Ms40,
+            Fs::Ms60 => Self::Ms60,
+            Fs::Ms80 => Self::Ms80,
+            Fs::Ms100 => Self::Ms100,
+            Fs::Ms120 => Self::Ms120,
+            fs => return Err(crate::error::OpusFrameSizeVariantUsupported(fs)),
+        })
+    }
+}
+
 impl Default for FrameSize {
     fn default() -> Self {
         Self::Ms20

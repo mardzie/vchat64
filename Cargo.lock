@@ -190,6 +190,8 @@ name = "audio_common"
 version = "0.1.0"
 dependencies = [
  "opus",
+ "thiserror 2.0.21",
+ "tracing",
 ]
 
 [[package]]
@@ -197,6 +199,7 @@ name = "audio_jitter_buffer"
 version = "0.1.0"
 dependencies = [
  "audio_common",
+ "chrono",
  "thiserror 2.0.21",
  "tracing",
 ]

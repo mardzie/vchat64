@@ -1,4 +1,7 @@
-use std::{num::NonZeroUsize, time::Duration};
+use std::{
+    num::NonZeroUsize,
+    time::{Duration, Instant},
+};
 
 use audio_common::frame_size::FrameSize;
 pub use entry::Entry;
@@ -10,19 +13,15 @@ pub mod error;
 pub type SequenceNumber = u64;
 
 #[derive(Debug)]
-pub struct JitterBuf<T>
-where
-    T: Clone,
-{
+pub struct JitterBuf<T> {
     inner: Vec<Option<Entry<T>>>,
     last_popped_seq: SequenceNumber,
     newest_pushed_seq: SequenceNumber,
+
+    target_delay: Duration,
 }
 
-impl<T> JitterBuf<T>
-where
-    T: Clone,
-{
+impl<T> JitterBuf<T> {
     const DEFAULT_CAPACTITY_MULTIPLIER: NonZeroUsize =
         NonZeroUsize::new(4).expect("default capacity multiplier must be non zero");
 
@@ -43,11 +42,14 @@ where
         let capacity = target_delay
             .as_nanos()
             .div_ceil(frame_size.duration().as_nanos());
+        let n = capacity as usize * capacity_multiplier.get();
 
         Ok(Self {
-            inner: vec![None; capacity as usize * capacity_multiplier.get()],
+            inner: std::iter::repeat_with(|| None).take(n).collect(),
             last_popped_seq: 0,
             newest_pushed_seq: 0,
+
+            target_delay,
         })
     }
 
@@ -72,10 +74,11 @@ where
 
         let value = self.inner.get_mut(index).expect("index must be in bounds");
         if let Some(old_entry) = value
-            && &entry == old_entry
+            && old_entry.seq() == seq
         {
             return Err(error::PushError::Duplicate { seq });
         }
+
         *value = Some(entry);
         self.newest_pushed_seq = self.newest_pushed_seq().max(seq);
 
@@ -87,25 +90,33 @@ where
     /// Advances the pointer by one each pop independant of the `Option` variant.
     #[must_use]
     #[inline]
-    pub fn pop(&mut self) -> Option<Entry<T>> {
+    pub fn pop(&mut self) -> Result<Entry<T>, error::PopError> {
+        let now = Instant::now();
         let current_index = self.current_pop_index();
         // The `current_index` must be in bounds. `current_index()` guarantees that.
         let value = self
             .inner
             .get_mut(current_index)
             .expect("index must be in bounds");
-        self.last_popped_seq += 1;
-        let entry = std::mem::take(value);
-
-        #[cfg(debug_assertions)]
+        if value.is_none() {
+            self.last_popped_seq += 1;
+            return Err(error::PopError::Underrun);
+        }
+        if let Some(entry) = value
+            && now < entry.timestamp() + self.target_delay
         {
-            match &entry {
-                Some(entry) => debug_assert_eq!(entry.seq(), self.last_popped_seq),
-                _ => (),
-            };
+            let remaining = entry.timestamp() + self.target_delay - now;
+            return Err(error::PopError::NotReady(remaining));
         }
 
-        entry
+        let entry = value
+            .take()
+            .expect("value should be `Some` after the ealier check");
+        self.last_popped_seq += 1;
+
+        debug_assert_eq!(entry.seq(), self.last_popped_seq());
+
+        Ok(entry)
     }
 
     /// The last popped sequence number.
@@ -149,3 +160,6 @@ where
         Self::new(Duration::from_millis(100), FrameSize::default()).expect("default must be valid")
     }
 }
+
+#[cfg(test)]
+mod jitter_buf_test {}
