@@ -64,7 +64,8 @@ impl Encoder {
     #[must_use]
     #[inline]
     pub fn input_sample_len(&self) -> usize {
-        self.frame_size.samples(SAMPLE_RATE_48K)
+        usize::try_from(self.frame_size.samples(SAMPLE_RATE_48K))
+            .expect("target should support u64 to usize conversions")
     }
 
     /// Forward Error Correction requested.
