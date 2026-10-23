@@ -1,0 +1,9 @@
+[package]
+name = "audio_jitter_buffer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+audio_common.workspace = true
+thiserror.workspace = true
+tracing.workspace = true

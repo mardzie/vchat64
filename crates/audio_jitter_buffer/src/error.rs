@@ -1,0 +1,17 @@
+use std::time::Duration;
+
+#[derive(thiserror::Error, Debug, Clone)]
+pub enum ConstructionError {
+    #[error("frame size {} s too small", .0.as_secs_f32())]
+    FrameSizeTooSmall(Duration),
+}
+
+#[derive(thiserror::Error, Debug, Clone)]
+pub enum PushError {
+    #[error("packet {seq} arrived too late (next expected {next_expected})")]
+    LatePacket { seq: u64, next_expected: u64 },
+    #[error("duplicate packet {seq}")]
+    Duplicate { seq: u64 },
+    #[error("packet {seq} too far ahead (window ends at {window_end})")]
+    TooFarAhead { seq: u64, window_end: u64 },
+}
